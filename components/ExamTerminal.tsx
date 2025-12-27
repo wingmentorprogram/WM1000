@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { AlertCircle, CheckCircle2, ChevronRight, FileText, Clock, BarChart2, BookOpen } from 'lucide-react';
-import { ExamType } from '../types';
+import { ExamType } from '../types.ts';
 
 interface ExamTerminalProps {
   examId?: string | number | null;

@@ -1,6 +1,6 @@
 import React from 'react';
-import { Page } from '../types';
-import { playSound } from '../services/audioService';
+import { Page } from '../types.ts';
+import { playSound } from '../services/audioService.ts';
 
 interface NavigationProps {
   activePage: Page;

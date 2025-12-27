@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { MessageCircle, X, Send, Bot, User, Minimize2, Maximize2 } from 'lucide-react';
-import { ChatMessage } from '../types';
-import { sendMessageToWingman } from '../services/geminiService';
+import { ChatMessage } from '../types.ts';
+import { sendMessageToWingman } from '../services/geminiService.ts';
 
 interface ChatWidgetProps {
   forceOpen?: boolean;

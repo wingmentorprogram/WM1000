@@ -29,8 +29,8 @@
               },
               aviation: {
                 screen: '#0b1016',
-                panel: '#111827', // Dark blue-grey for UI panels
-                accent: '#38bdf8' // A nice sky blue for accents
+                panel: '#111827',
+                accent: '#38bdf8'
               }
             },
             fontFamily: {
@@ -88,21 +88,15 @@
         color: #e2e8f0;
         overflow: hidden; 
       }
-
-      /* Realistic Materials */
       .material-plastic {
         background-color: #1a1a1d;
         background-image: url("https://www.transparenttextures.com/patterns/stardust.png");
-        /* More realistic overhead lighting */
         background: linear-gradient(to bottom, #2a2a2e, #161618 80%);
       }
-      
       .material-rubber {
         background-color: #202022;
         background-image: url("https://www.transparenttextures.com/patterns/asfalt-dark.png");
       }
-
-      /* Screen Effects */
       .pixel-grid {
         background-image: 
           linear-gradient(0deg, transparent 2px, rgba(0, 0, 0, 0.4) 3px),
@@ -111,22 +105,17 @@
         pointer-events: none;
         opacity: 0.15;
       }
-      
       .screen-reflection {
         background: linear-gradient(135deg, rgba(255,255,255,0.08) 0%, transparent 40%);
         pointer-events: none;
       }
-
       .lcd-glow {
         box-shadow: 0 0 60px rgba(100, 200, 255, 0.05);
       }
-      
       .screen-vignette {
         box-shadow: inset 0 0 100px 30px rgba(0,0,0,0.85);
         pointer-events: none;
       }
-
-      /* 3D Hardware Elements */
       .screw {
         width: 10px;
         height: 10px;
@@ -151,7 +140,6 @@
          background: #000;
          transform: translate(-50%, -50%) rotate(-45deg);
       }
-      
       .bezel-frame {
         padding: 2px;
         background: linear-gradient(145deg, #1f1f22, #111113);
@@ -161,8 +149,6 @@
             inset 0 3px 3px #3a3a3e,
             inset 0 -3px 3px #08080a;
       }
-
-      /* Scrollbar for internal screen content */
       ::-webkit-scrollbar {
         width: 6px;
       }
@@ -181,16 +167,19 @@
 {
   "imports": {
     "react": "https://esm.sh/react@^19.2.3",
-    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
-    "react/": "https://esm.sh/react@^19.2.3/",
+    "react-dom": "https://esm.sh/react-dom@^19.2.3",
+    "react-dom/client": "https://esm.sh/react-dom@^19.2.3/client",
     "@google/genai": "https://esm.sh/@google/genai@^1.34.0",
     "lucide-react": "https://esm.sh/lucide-react@^0.562.0",
-    "recharts": "https://esm.sh/recharts@^3.6.0"
+    "recharts": "https://esm.sh/recharts@^3.6.0",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "react/": "https://esm.sh/react@^19.2.3/"
   }
 }
 </script>
 </head>
   <body>
     <div id="root"></div>
+    <script type="module" src="index.tsx"></script>
   </body>
 </html>

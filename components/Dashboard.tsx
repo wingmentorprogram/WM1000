@@ -1,5 +1,5 @@
 import React from 'react';
-import { Page } from '../types';
+import { Page } from '../types.ts';
 import { Database, BookOpen, GraduationCap, Users, Plane, BarChart2 } from 'lucide-react';
 
 interface DashboardProps {
