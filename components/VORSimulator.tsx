@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Plane, Target, ChevronLeft, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, AlertCircle, Play, Navigation2 } from 'lucide-react';
+import { Plane, Target, ChevronLeft, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, AlertCircle, Play, Navigation2, RefreshCw, Info, InfoIcon } from 'lucide-react';
 import { playSound } from '../services/audioService';
 
 interface VORSimulatorProps {
@@ -9,6 +9,7 @@ interface VORSimulatorProps {
 
 const VORSimulator: React.FC<VORSimulatorProps> = ({ type, onExit }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const pathRef = useRef<{ x: number, y: number }[]>([]);
   const [isPaused, setIsPaused] = useState(true);
   const [planePos, setPlanePos] = useState({ x: 0, y: 0 }); 
   const [heading, setHeading] = useState(0);
@@ -17,12 +18,13 @@ const VORSimulator: React.FC<VORSimulatorProps> = ({ type, onExit }) => {
   const [isTo, setIsTo] = useState(true);
   const [cdiDeflection, setCdiDeflection] = useState(0);
   const [velocity, setVelocity] = useState(0.4); 
-  const [headingBug, setHeadingBug] = useState(90);
+  const [headingBug, setHeadingBug] = useState(0);
   
   // Mission Tracking
   const [phase, setPhase] = useState<'INBOUND' | 'OUTBOUND'>('INBOUND');
   const [targetRadial, setTargetRadial] = useState(180);
   const [passageAlert, setPassageAlert] = useState(false);
+  const [showPassageExplanation, setShowPassageExplanation] = useState(false);
 
   // State to track steering combo for doubling the turn rate
   const [steerCombo, setSteerCombo] = useState({ dir: null as 'left' | 'right' | null, count: 0, lastTime: 0 });
@@ -30,6 +32,9 @@ const VORSimulator: React.FC<VORSimulatorProps> = ({ type, onExit }) => {
   // Mission Logic
   const stationPos = { x: 0, y: -5000 }; 
   const crosswindX = 0.12; 
+
+  const currentDmeValue = Math.hypot(planePos.x - stationPos.x, planePos.y - stationPos.y) / 100;
+  const currentDme = currentDmeValue.toFixed(1);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -40,15 +45,24 @@ const VORSimulator: React.FC<VORSimulatorProps> = ({ type, onExit }) => {
     let animationFrameId: number;
 
     const update = () => {
-      if (!isPaused) {
+      if (!isPaused && !showPassageExplanation) {
         setPlanePos(prev => {
           const rad = (heading - 90) * (Math.PI / 180);
           const drift = velocity > 0 ? crosswindX : 0;
           const newX = prev.x + Math.cos(rad) * velocity + drift;
           const newY = prev.y + Math.sin(rad) * velocity;
           
+          // Add to path trace
+          const lastPoint = pathRef.current[pathRef.current.length - 1];
+          if (!lastPoint || Math.hypot(lastPoint.x - newX, lastPoint.y - newY) > 5) {
+            pathRef.current.push({ x: newX, y: newY });
+            if (pathRef.current.length > 2000) pathRef.current.shift();
+          }
+
           const dx = newX - stationPos.x;
           const dy = newY - stationPos.y;
+          const distToStation = Math.hypot(dx, dy) / 100;
+
           let angle = Math.atan2(dy, dx) * (180 / Math.PI) + 90;
           
           while (angle < 0) angle += 360;
@@ -63,6 +77,13 @@ const VORSimulator: React.FC<VORSimulatorProps> = ({ type, onExit }) => {
           
           const isActuallyTo = Math.abs(diff) > 90;
           
+          // TRIGGER STATION PASSAGE EXPLANATION
+          if (phase === 'INBOUND' && distToStation < 0.15) {
+             setShowPassageExplanation(true);
+             setIsPaused(true);
+             return prev; // Don't move while explanation is shown
+          }
+
           if (phase === 'INBOUND' && !isActuallyTo) {
              setPhase('OUTBOUND');
              setTargetRadial(360);
@@ -113,16 +134,42 @@ const VORSimulator: React.FC<VORSimulatorProps> = ({ type, onExit }) => {
         ctx.stroke();
       }
 
+      // DRAW FLIGHT PATH TRACE
+      ctx.save();
+      ctx.strokeStyle = '#3b82f6'; // Bright Aviation Blue
+      ctx.lineWidth = 2.5;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.beginPath();
+      pathRef.current.forEach((p, i) => {
+        const drawX = p.x - planePos.x;
+        const drawY = p.y - planePos.y;
+        if (i === 0) ctx.moveTo(drawX, drawY);
+        else ctx.lineTo(drawX, drawY);
+      });
+      // Draw a line to the current aircraft position
+      ctx.lineTo(0, 0); 
+      ctx.stroke();
+      ctx.restore();
+
+      // DRAW RADIAL REFERENCE LINES (PHYSICAL 180 & 360 CORRIDOR)
       ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
       ctx.setLineDash([]);
       ctx.lineWidth = 2;
+      const sX = stationPos.x - planePos.x;
+      const sY = stationPos.y - planePos.y;
+      
       ctx.beginPath();
-      ctx.moveTo(stationPos.x - planePos.x, stationPos.y - planePos.y);
-      ctx.lineTo(stationPos.x - planePos.x, stationPos.y - planePos.y + 10000);
+      // Line extending South (180 Radial)
+      ctx.moveTo(sX, sY);
+      ctx.lineTo(sX, sY + 10000);
+      // Line extending North (360 Radial)
+      ctx.moveTo(sX, sY);
+      ctx.lineTo(sX, sY - 10000);
       ctx.stroke();
 
       ctx.save();
-      ctx.translate(stationPos.x - planePos.x + 12, stationPos.y - planePos.y + 800);
+      ctx.translate(sX + 12, sY + 800);
       ctx.rotate(Math.PI / 2);
       ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
       ctx.font = 'bold 10px "Share Tech Mono"';
@@ -130,13 +177,14 @@ const VORSimulator: React.FC<VORSimulatorProps> = ({ type, onExit }) => {
       ctx.restore();
 
       ctx.save();
-      ctx.translate(stationPos.x - planePos.x + 12, stationPos.y - planePos.y - 1200);
+      ctx.translate(sX + 12, sY - 1200);
       ctx.rotate(Math.PI / 2);
       ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
       ctx.font = 'bold 10px "Share Tech Mono"';
       ctx.fillText("RADIAL 360", 0, 0);
       ctx.restore();
 
+      // STATION INDICATOR
       const sx = stationPos.x - planePos.x;
       const sy = stationPos.y - planePos.y;
       
@@ -188,10 +236,11 @@ const VORSimulator: React.FC<VORSimulatorProps> = ({ type, onExit }) => {
 
     update();
     return () => cancelAnimationFrame(animationFrameId);
-  }, [isPaused, heading, velocity, obs, planePos, stationPos, phase]);
+  }, [isPaused, heading, velocity, obs, planePos, stationPos, phase, showPassageExplanation]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (showPassageExplanation) return;
       if (isPaused) {
         if (e.key === 'Enter' || e.key === ' ') setIsPaused(false);
         return;
@@ -200,12 +249,14 @@ const VORSimulator: React.FC<VORSimulatorProps> = ({ type, onExit }) => {
       if (e.key === 'ArrowRight') handleSteer('right');
       if (e.key === 'q' || e.key === 'Q') { playSound('click'); setObs(o => (o - 1 + 360) % 360); }
       if (e.key === 'e' || e.key === 'E') { playSound('click'); setObs(o => (o + 1) % 360); }
+      if (e.key === '[') { playSound('click'); setHeadingBug(h => (h - 1 + 360) % 360); }
+      if (e.key === ']') { playSound('click'); setHeadingBug(h => (h + 1) % 360); }
       if (e.key === 'w' || e.key === 'W') handleThrottle('up');
       if (e.key === 's' || e.key === 'S') handleThrottle('down');
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isPaused, obs, heading, velocity, steerCombo]);
+  }, [isPaused, obs, heading, velocity, steerCombo, showPassageExplanation]);
 
   const handleSteer = (dir: 'left' | 'right') => {
     playSound('click');
@@ -215,13 +266,30 @@ const VORSimulator: React.FC<VORSimulatorProps> = ({ type, onExit }) => {
       newCount = steerCombo.count + 1;
     }
     const delta = newCount > 2 ? 4 : 2;
-    setHeading(h => (dir === 'left' ? (h - delta + 360) % 360 : (h + delta) % 360));
+    const newHdg = dir === 'left' ? (heading - delta + 360) % 360 : (heading + delta) % 360;
+    
+    setHeading(newHdg);
+    setHeadingBug(newHdg);
     setSteerCombo({ dir, count: newCount, lastTime: now });
   };
 
   const handleThrottle = (dir: 'up' | 'down') => {
     playSound('click');
     setVelocity(v => (dir === 'up' ? Math.min(5, v + 0.1) : Math.max(0, v - 0.1)));
+  };
+
+  const syncHeadingBug = () => {
+    playSound('click');
+    setHeadingBug(heading);
+  };
+
+  const closeExplanation = () => {
+      playSound('click');
+      setPhase('OUTBOUND');
+      setTargetRadial(360);
+      setIsTo(false);
+      setShowPassageExplanation(false);
+      setIsPaused(false);
   };
 
   const renderInstrument = () => {
@@ -275,10 +343,14 @@ const VORSimulator: React.FC<VORSimulatorProps> = ({ type, onExit }) => {
           
           {/* TOP INSTRUMENT INFO BAR */}
           <div className="flex justify-between w-full px-2 mb-2">
-            <div className="bg-black border border-white/40 px-3 py-1 rounded flex items-center gap-2">
+            <button 
+              onClick={syncHeadingBug}
+              className="bg-black border border-white/40 px-3 py-1 rounded flex items-center gap-2 hover:bg-zinc-800 transition-colors group/sync"
+            >
                <span className="text-[9px] text-g1000-cyan font-black uppercase tracking-tighter">HDG</span>
-               <span className="text-g1000-cyan font-mono text-xs font-black">{headingBug.toString().padStart(3, '0')}°</span>
-            </div>
+               <span className="text-g1000-cyan font-mono text-xs font-black">{Math.round(headingBug).toString().padStart(3, '0')}°</span>
+               <RefreshCw className="w-2.5 h-2.5 text-g1000-cyan/40 group-hover/sync:rotate-180 transition-transform" />
+            </button>
             <div className="flex flex-col items-center justify-center">
                <div className="bg-black border-2 border-white px-3 py-1 rounded shadow-lg">
                   <span className="text-white font-mono text-base font-black tracking-tighter">{Math.round(heading).toString().padStart(3, '0')}°</span>
@@ -378,7 +450,7 @@ const VORSimulator: React.FC<VORSimulatorProps> = ({ type, onExit }) => {
     <div className="h-full w-full bg-black flex flex-col font-mono text-white overflow-hidden relative">
       
       {/* INITIAL BRIEFING POPUP */}
-      {isPaused && (
+      {isPaused && !showPassageExplanation && (
         <div className="absolute inset-0 z-[100] flex flex-col items-center justify-center bg-transparent pointer-events-auto">
            <div className="bg-black border-2 border-white p-4 shadow-[0_0_60px_rgba(0,0,0,1)] w-[300px] animate-pulse">
               <div className="flex items-center gap-2 mb-3">
@@ -402,6 +474,95 @@ const VORSimulator: React.FC<VORSimulatorProps> = ({ type, onExit }) => {
                 CONTINUE
               </button>
            </div>
+        </div>
+      )}
+
+      {/* STATION PASSAGE TUTORIAL ANIMATION */}
+      {showPassageExplanation && (
+        <div className="absolute inset-0 z-[110] flex items-center justify-center bg-black/70 backdrop-blur-md animate-fade-in pointer-events-auto">
+            <div className="max-w-4xl w-full bg-[#111] border-2 border-g1000-cyan/50 p-8 rounded-3xl shadow-[0_0_80px_rgba(0,255,255,0.2)] flex flex-col md:flex-row gap-8 items-center">
+                
+                {/* Visual Demo Side */}
+                <div className="w-full md:w-1/2 flex flex-col items-center gap-6">
+                    <div className="relative w-48 h-48 bg-black rounded-full border-4 border-zinc-800 flex items-center justify-center overflow-hidden">
+                        <div className="absolute inset-0 flex flex-col items-center justify-center">
+                            {/* Animated Flag */}
+                            <div className="flex flex-col items-center gap-2">
+                                <div className="text-[10px] text-zinc-500 font-black uppercase tracking-widest">Active Indicaion</div>
+                                <div className="relative h-12 w-24 flex items-center justify-center bg-zinc-900 rounded border border-white/10 overflow-hidden">
+                                    <div className="flex flex-col items-center transition-transform duration-[2000ms] ease-in-out animate-[passage-flag_5s_infinite_alternate]">
+                                        <span className="text-g1000-green font-black text-lg py-2">TO</span>
+                                        <div className="h-4 w-full bg-red-600/50 flex items-center justify-center"><span className="text-[8px] font-black">OFF / NAV</span></div>
+                                        <span className="text-g1000-amber font-black text-lg py-2">FROM</span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            {/* Moving needle mock */}
+                            <div className="absolute h-32 w-1 bg-g1000-cyan animate-[passage-cdi_3s_infinite_alternate] shadow-[0_0_10px_cyan]"></div>
+                        </div>
+                    </div>
+
+                    <div className="flex flex-col items-center text-center">
+                        <div className="flex items-center gap-2 mb-2">
+                            <Plane className="w-4 h-4 text-g1000-cyan animate-bounce" />
+                            <span className="text-[11px] font-black text-white uppercase tracking-widest">Entering Cone of Confusion</span>
+                        </div>
+                        <p className="text-[10px] text-zinc-500 max-w-[280px]">Directly above the station, signals disappear. The instrument will show 'OFF' or fluctuate before flipping the flag.</p>
+                    </div>
+                </div>
+
+                {/* Description Side */}
+                <div className="w-full md:w-1/2 space-y-6">
+                    <div className="flex items-center gap-4 border-b border-white/10 pb-4">
+                        <div className="p-2 bg-g1000-cyan/20 rounded-lg"><Info className="w-6 h-6 text-g1000-cyan" /></div>
+                        <div>
+                            <h3 className="text-xl font-black text-white tracking-widest uppercase">Station Passage</h3>
+                            <p className="text-[10px] text-g1000-cyan font-bold tracking-widest uppercase">Transition: Inbound &rarr; Outbound</p>
+                        </div>
+                    </div>
+
+                    <div className="space-y-4">
+                        <div className="p-4 bg-zinc-900/50 rounded-xl border border-white/5">
+                            <h4 className="text-[11px] font-black text-g1000-green uppercase mb-1 tracking-widest">1. THE INDICATOR FLIP</h4>
+                            <p className="text-xs text-zinc-400 leading-relaxed">As you cross the VOR, your instrument automatically detects that you are no longer flying <span className="text-g1000-green font-bold italic">TO</span> the station. The indicator triangle will flip to <span className="text-g1000-amber font-bold italic">FROM</span>.</p>
+                        </div>
+                        <div className="p-4 bg-zinc-900/50 rounded-xl border border-white/5">
+                            <h4 className="text-[11px] font-black text-g1000-amber uppercase mb-1 tracking-widest">2. REVERSE SENSING (Analog)</h4>
+                            <p className="text-xs text-zinc-400 leading-relaxed">If you were using an analog VOR and didn't rotate the OBS, your needle would now be 'reverse sensing'. Luckily, on a Glass HSI, the needle always points the right way as long as you fly the course!</p>
+                        </div>
+                        <div className="p-4 bg-zinc-900/50 rounded-xl border border-white/5">
+                            <h4 className="text-[11px] font-black text-g1000-cyan uppercase mb-1 tracking-widest">3. TWIST - TURN - TRACK</h4>
+                            <p className="text-xs text-zinc-400 leading-relaxed">Standard Procedure: <span className="font-bold text-white">TWIST</span> the OBS for the new course, <span className="font-bold text-white">TURN</span> to heading, and <span className="font-bold text-white">TRACK</span> the outbound radial.</p>
+                        </div>
+                    </div>
+
+                    <button 
+                      onClick={closeExplanation}
+                      className="w-full bg-white text-black py-4 rounded-xl font-black tracking-[0.4em] uppercase hover:bg-g1000-cyan transition-all active:scale-95 shadow-[0_10px_30px_rgba(0,0,0,0.4)]"
+                    >
+                      RESUME OUTBOUND
+                    </button>
+                </div>
+            </div>
+            
+            <style>{`
+                @keyframes passage-flag {
+                    0% { transform: translateY(0px); }
+                    30% { transform: translateY(0px); }
+                    45% { transform: translateY(-44px); }
+                    55% { transform: translateY(-44px); }
+                    70% { transform: translateY(-88px); }
+                    100% { transform: translateY(-88px); }
+                }
+                @keyframes passage-cdi {
+                    0% { transform: translateX(-30px); }
+                    40% { transform: translateX(30px); }
+                    50% { transform: translateX(0); opacity: 0.3; }
+                    60% { transform: translateX(-40px); opacity: 1; }
+                    100% { transform: translateX(40px); }
+                }
+            `}</style>
         </div>
       )}
 
@@ -430,6 +591,10 @@ const VORSimulator: React.FC<VORSimulatorProps> = ({ type, onExit }) => {
                 <div className="flex justify-between items-center">
                    <span className="text-zinc-400 font-bold uppercase tracking-tighter">SPD</span>
                    <span className="text-g1000-green font-black text-sm">{(velocity * 100).toFixed(0)} <span className="text-[8px] opacity-60 font-black">KTS</span></span>
+                </div>
+                <div className="flex justify-between items-center">
+                   <span className="text-zinc-400 font-bold uppercase tracking-tighter">DME</span>
+                   <span className="text-g1000-green font-black text-sm">{currentDme} <span className="text-[8px] opacity-60 font-black">NM</span></span>
                 </div>
                 <div className="flex justify-between items-center pt-1.5 border-t border-white/5">
                    <span className="text-zinc-400 font-bold uppercase tracking-tighter">RAD</span>
