@@ -20,10 +20,11 @@ const WelcomeScreen: React.FC<{ onStart: () => void }> = ({ onStart }) => {
     const [isExiting, setIsExiting] = useState(false);
 
     useEffect(() => {
-        const handleStart = () => {
+        const handleStart = (e: KeyboardEvent | MouseEvent) => {
             if (isExiting) return;
             setIsExiting(true);
-            setTimeout(onStart, 800); // Animation duration
+            playSound('click');
+            setTimeout(onStart, 800);
         };
 
         window.addEventListener('keydown', handleStart);
@@ -51,7 +52,7 @@ const WelcomeScreen: React.FC<{ onStart: () => void }> = ({ onStart }) => {
                     <div className="text-g1000-white font-mono text-5xl font-bold tracking-widest leading-none" style={{ textShadow: '0 0 20px rgba(0, 255, 255, 0.3)'}}>WingMentor</div>
                     <div className="text-g1000-gray font-mono text-lg font-bold tracking-[0.4em] mt-3">W1000</div>
                 </div>
-                <div className="mt-24 text-lg text-zinc-300 font-mono tracking-wider animate-pulse-glow" style={{ animationDelay: '1.5s' }}>
+                <div className="mt-24 text-lg text-zinc-300 font-mono tracking-wider animate-pulse-glow" style={{ animationDelay: '1s' }}>
                     PRESS ANY KEY TO START
                 </div>
             </div>
@@ -72,29 +73,30 @@ const App: React.FC = () => {
   const [showWelcome, setShowWelcome] = useState(true);
   const [showSidePanel, setShowSidePanel] = useState(true);
 
-  // Simulate system boot sequence only after launch
   useEffect(() => {
     if (!hasLaunched) return;
-    setIsLoading(true); // Reset loading state on launch
+    
+    setIsLoading(true);
+    setLoadingProgress(0);
+    
     const timer = setInterval(() => {
       setLoadingProgress((prev) => {
         if (prev >= 100) {
           clearInterval(timer);
-          setTimeout(() => setIsLoading(false), 1500); // Shortened post-load delay
+          setTimeout(() => setIsLoading(false), 800);
           return 100;
         }
-        return prev + Math.random() * 5;
+        return prev + Math.random() * 8;
       });
-    }, 50);
+    }, 40);
 
     return () => clearInterval(timer);
   }, [hasLaunched]);
 
-  // Handler for Main Menu Selection (from Six-Pack)
   const handleMenuSelection = (page: Page) => {
       setActiveModule(page);
       setSubPageId(null);
-      setIsMiniMfdOpen(false); // Reset on module change
+      setIsMiniMfdOpen(false);
 
       if (page === Page.DASHBOARD) {
         setCurrentView('MFD');
@@ -153,10 +155,10 @@ const App: React.FC = () => {
               <div className="text-g1000-white font-mono text-3xl font-bold tracking-widest leading-none">WingMentor</div>
               <div className="text-g1000-gray font-mono text-sm font-bold tracking-[0.3em] mt-2">W1000</div>
           </div>
-          <div className="w-64 h-1.5 bg-zinc-800 rounded-full overflow-hidden mt-4 animate-fade-in" style={{animationDelay: '0.2s'}}>
+          <div className="w-64 h-1.5 bg-zinc-800 rounded-full overflow-hidden mt-4 animate-fade-in">
               <div className="h-full bg-g1000-green transition-all duration-100" style={{ width: `${loadingProgress}%` }} />
           </div>
-          <div className="mt-4 text-xs text-zinc-500 font-mono animate-fade-in" style={{animationDelay: '0.4s'}}>INITIALIZING SYSTEM...</div>
+          <div className="mt-4 text-[10px] text-zinc-500 font-mono animate-fade-in tracking-widest uppercase">Initializing Avionics...</div>
         </div>
       );
     }
@@ -166,7 +168,7 @@ const App: React.FC = () => {
     }
 
     return (
-      <>
+      <div className="h-full w-full relative">
         {currentView === 'MFD' && renderMfdContent()}
         {currentView === 'PFD' && (
             <PrimaryFlightDisplay 
@@ -177,13 +179,13 @@ const App: React.FC = () => {
                   onSelectSubPage={handleSubPageSelection}
             />
         )}
-      </>
+      </div>
     );
   };
 
 
   if (!hasLaunched) {
-    return <LandingPage onEnter={() => setHasLaunched(true)} />;
+    return <LandingPage onEnter={() => { playSound('click'); setHasLaunched(true); }} />;
   }
 
   const Screw = ({ className }: { className?: string }) => <div className={`screw opacity-70 ${className}`}></div>;
@@ -191,7 +193,6 @@ const App: React.FC = () => {
   return (
     <div className="h-screen w-screen bg-[#1a1a1d] material-plastic overflow-hidden flex flex-col relative shadow-[inset_0_0_150px_rgba(0,0,0,1)] animate-fade-in">
         
-        {/* Fine texture overlay for the entire panel */}
         <div className="absolute inset-0 opacity-[0.03] pointer-events-none mix-blend-overlay bg-[url('https://www.transparenttextures.com/patterns/asfalt-dark.png')] z-10"></div>
         
         <Screw className="absolute top-4 left-4 z-50" />
@@ -199,7 +200,6 @@ const App: React.FC = () => {
         <Screw className="absolute bottom-4 left-4 z-50" />
         <Screw className="absolute bottom-4 right-4 z-50" />
 
-        {/* SCREEN TRANSITION BUTTONS (MOVED TO LEFT SIDE TO PREVENT CLUTTER) */}
         {currentView === 'MFD' && activeModule !== Page.DASHBOARD && subPageId && (
             <button 
                 onClick={() => { playSound('click'); setCurrentView('PFD'); }}
@@ -221,14 +221,13 @@ const App: React.FC = () => {
         )}
 
         <div className="h-16 w-full bg-gradient-to-b from-[#252529] via-[#1a1a1d] to-[#121214] border-b-2 border-black/90 shadow-[0_4px_10px_rgba(0,0,0,0.8),inset_0_1px_0_rgba(255,255,255,0.05)] flex items-center justify-between px-6 shrink-0 relative z-20">
-            {/* Top highlight to simulate light hitting the upper edge */}
             <div className="absolute top-0 left-0 w-full h-[1px] bg-white/10 opacity-50"></div>
             
             <div className="flex items-center gap-6 ml-12">
                 <div className="flex flex-col">
                     <span className="text-[9px] text-zinc-500 font-bold tracking-widest ml-1 mb-0.5 uppercase">Com1 Vol / Sq</span>
                     <div className="flex items-center gap-2">
-                        <div onClick={() => playSound('click')} className="w-8 h-8 rounded-full bg-[#111] border border-black shadow-knob flex items-center justify-center material-rubber relative group">
+                        <div onClick={() => playSound('click')} className="w-8 h-8 rounded-full bg-[#111] border border-black shadow-knob flex items-center justify-center material-rubber relative group cursor-pointer active:scale-90 transition-transform">
                            <div className="absolute inset-0 rounded-full bg-gradient-to-tr from-white/5 to-transparent opacity-20"></div>
                            <Volume2 className="w-3 h-3 text-zinc-600 group-hover:text-zinc-400 transition-colors" />
                         </div>
@@ -244,16 +243,13 @@ const App: React.FC = () => {
                 </div>
             </div>
 
-            {/* BRANDING PLATE AT TOP CENTER */}
             <div className="flex flex-col items-center justify-center border-x-2 border-black/90 px-10 h-full bg-gradient-to-br from-[#202024] via-[#121214] to-[#08080a] shadow-[inset_0_8px_16px_rgba(0,0,0,0.9),0_1px_1px_rgba(255,255,255,0.05)] relative overflow-hidden group mx-4 rounded-b-lg">
                 <div className="absolute top-0 left-0 w-full h-[1px] bg-white/5 opacity-30"></div>
                 <div className="absolute inset-0 opacity-[0.08] pointer-events-none bg-[url('https://www.transparenttextures.com/patterns/brushed-alum.png')]"></div>
 
                 <div className="flex flex-col items-center relative z-10">
                     <div className="text-zinc-300 font-black text-sm leading-none tracking-[0.25em] uppercase" 
-                         style={{ 
-                            textShadow: '0 -1px 1px rgba(0,0,0,0.8), 0 1px 1px rgba(255,255,255,0.1)',
-                         }}>
+                         style={{ textShadow: '0 -1px 1px rgba(0,0,0,0.8), 0 1px 1px rgba(255,255,255,0.1)' }}>
                         WingMentor
                     </div>
                     <div className="text-zinc-600 font-bold text-[7px] tracking-[0.45em] mt-2 opacity-70 uppercase">
@@ -285,7 +281,7 @@ const App: React.FC = () => {
               <div className="screen-vignette absolute inset-0 z-30 pointer-events-none"></div>
 
               <div className={`flex-1 relative bg-aviation-screen overflow-hidden ${avionicsOn ? 'lcd-glow' : ''}`}>
-                  <div className="absolute inset-0 z-20 overflow-hidden scroll-smooth">
+                  <div className="absolute inset-0 z-20 overflow-hidden">
                      {renderScreenContent()}
                   </div>
               </div>
@@ -293,7 +289,6 @@ const App: React.FC = () => {
           </div>
         </div>
 
-        {/* MECHANICAL SIDE BAR TOGGLE (ON RIGHT) */}
         <button 
           onClick={() => { playSound('click'); setShowSidePanel(!showSidePanel); }}
           className={`absolute ${showSidePanel ? 'right-24' : 'right-2'} top-1/2 -translate-y-1/2 z-[60] bg-[#1a1a1d] border-2 border-black/80 w-10 h-24 rounded-l-md shadow-2xl flex flex-col items-center justify-center gap-1 transition-all duration-500 group active:scale-95 overflow-hidden`}
@@ -307,9 +302,7 @@ const App: React.FC = () => {
            )}
         </button>
 
-        {/* MECHANICAL CONTROL SIDE BAR (ON RIGHT) */}
         <div className={`absolute right-2 top-1/2 -translate-y-1/2 flex flex-col gap-6 z-50 w-20 items-center pointer-events-auto py-5 bg-gradient-to-b from-[#18181b] to-[#0c0c0e] rounded-l-xl border-y-2 border-l-2 border-black/80 shadow-[0_20px_50px_rgba(0,0,0,1),-5px_0_15px_rgba(0,0,0,0.4)] backdrop-blur-md transition-all duration-500 ${showSidePanel ? 'translate-x-0' : 'translate-x-[110%]'}`}>
-            
             <div className="absolute top-0 left-0 w-full h-[1px] bg-white/5"></div>
             <div className="absolute inset-0 opacity-[0.05] pointer-events-none bg-[url('https://www.transparenttextures.com/patterns/asfalt-dark.png')]"></div>
 
