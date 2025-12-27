@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Wind, Plane } from 'lucide-react';
-import { Page } from '../types';
-import SimulatorRoom from './SimulatorRoom';
-import ExamTerminal from './ExamTerminal';
-import Forum from './Forum';
-import UserProfile from './UserProfile';
-import ProgramHandbook from './ProgramHandbook';
-import BlackBox from './BlackBox';
+import { Page } from '../types.ts';
+import SimulatorRoom from './SimulatorRoom.tsx';
+import ExamTerminal from './ExamTerminal.tsx';
+import Forum from './Forum.tsx';
+import UserProfile from './UserProfile.tsx';
+import ProgramHandbook from './ProgramHandbook.tsx';
+import BlackBox from './BlackBox.tsx';
 
 interface PrimaryFlightDisplayProps {
     activePage: Page;

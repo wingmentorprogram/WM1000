@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Plane, Compass, Navigation2, Target, MoveUpRight, ChevronLeft, ChevronRight, Radio, Activity, Award, BarChart, Settings, Play } from 'lucide-react';
-import { playSound } from '../services/audioService';
-import VORSimulator from './VORSimulator';
+import { playSound } from '../services/audioService.ts';
+import VORSimulator from './VORSimulator.tsx';
 
 interface TrainingModule {
   id: string;

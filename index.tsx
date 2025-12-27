@@ -1,18 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
-import Navigation from './components/Navigation';
-import Dashboard from './components/Dashboard';
-import SimulatorRoom from './components/SimulatorRoom';
-import ExamTerminal from './components/ExamTerminal';
-import Forum from './components/Forum';
-import UserProfile from './components/UserProfile';
-import ProgramHandbook from './components/ProgramHandbook';
-import BlackBox from './components/BlackBox';
-import LandingPage from './components/LandingPage';
-import PrimaryFlightDisplay from './components/PrimaryFlightDisplay';
-import { Page } from './types';
+import Navigation from './components/Navigation.tsx';
+import Dashboard from './components/Dashboard.tsx';
+import SimulatorRoom from './components/SimulatorRoom.tsx';
+import ExamTerminal from './components/ExamTerminal.tsx';
+import Forum from './components/Forum.tsx';
+import UserProfile from './components/UserProfile.tsx';
+import ProgramHandbook from './components/ProgramHandbook.tsx';
+import BlackBox from './components/BlackBox.tsx';
+import LandingPage from './components/LandingPage.tsx';
+import PrimaryFlightDisplay from './components/PrimaryFlightDisplay.tsx';
+import { Page } from './types.ts';
 import { Volume2, Power, ChevronLeft, ChevronRight, Settings2, SlidersHorizontal } from 'lucide-react';
-import { playSound } from './services/audioService';
+import { playSound } from './services/audioService.ts';
 
 type ScreenView = 'PFD' | 'MFD';
 

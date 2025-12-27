@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Plane, Target, ChevronLeft, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, AlertCircle, Play, Navigation2, RefreshCw, Info, InfoIcon } from 'lucide-react';
-import { playSound } from '../services/audioService';
+import { Plane, Target, ChevronLeft, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, AlertCircle, Play, Navigation2, RefreshCw, Info } from 'lucide-react';
+import { playSound } from '../services/audioService.ts';
 
 interface VORSimulatorProps {
   type: 'VOR' | 'HSI';
