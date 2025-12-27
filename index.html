@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>WingMentor Passport</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              g1000: {
+                 black: '#000000',
+                 white: '#FFFFFF',
+                 cyan: '#00FFFF',
+                 amber: '#FFCC00',
+                 magenta: '#FF00FF',
+                 red: '#FF0000',
+                 green: '#00FF00',
+                 gray: '#A0A0A0',
+                 darkgray: '#303030',
+                 blue: '#0000FF',
+                 darkblue: '#000033'
+              },
+              aviation: {
+                screen: '#0b1016',
+                panel: '#111827', // Dark blue-grey for UI panels
+                accent: '#38bdf8' // A nice sky blue for accents
+              }
+            },
+            fontFamily: {
+              sans: ['Inter', 'sans-serif'],
+              mono: ['"Share Tech Mono"', '"JetBrains Mono"', 'monospace'], 
+            },
+            boxShadow: {
+               'bezel': 'inset 0 0 20px 5px rgba(0,0,0,0.9), 0 1px 0 rgba(255,255,255,0.1)',
+               'knob': '0 8px 15px rgba(0,0,0,0.8), 0 3px 5px rgba(0,0,0,0.6), inset 0 2px 1px rgba(255,255,255,0.1), inset 0 -2px 1px rgba(0,0,0,0.5)',
+               'softkey': '0 3px 0 #080808, 0 5px 5px rgba(0,0,0,0.8)',
+               'softkey-pressed': '0 0 0 #080808, inset 0 2px 5px rgba(0,0,0,0.9)',
+               'led-glow': '0 0 10px #00ff00, 0 0 20px #00ff00',
+            },
+            backgroundImage: {
+               'noise': 'url("https://www.transparenttextures.com/patterns/stardust.png")',
+            },
+            keyframes: {
+               slideInFromLeft: {
+                 '0%': { transform: 'translateX(-100%)', opacity: '0' },
+                 '100%': { transform: 'translateX(0)', opacity: '1' },
+               },
+               fadeIn: {
+                  '0%': { opacity: '0' },
+                  '100%': { opacity: '1' },
+               },
+               fadeOut: {
+                  '0%': { opacity: '1' },
+                  '100%': { opacity: '0', visibility: 'hidden' },
+               },
+               pulseGlow: {
+                  '0%, 100%': { opacity: '0.5', textShadow: '0 0 5px rgba(255,255,255,0.1)' },
+                  '50%': { opacity: '1', textShadow: '0 0 15px rgba(255,255,255,0.4)' },
+               },
+               sweepGrid: {
+                  '0%': { backgroundPosition: '150% 0' },
+                  '100%': { backgroundPosition: '-50% 0' },
+               }
+            },
+            animation: {
+              'slide-in-left': 'slideInFromLeft 0.3s ease-out forwards',
+              'fade-in': 'fadeIn 1s ease-in-out forwards',
+              'fade-out': 'fadeOut 0.8s ease-in-out forwards',
+              'pulse-glow': 'pulseGlow 3s infinite ease-in-out',
+              'sweep-grid': 'sweepGrid 8s linear infinite',
+            }
+          }
+        }
+      }
+    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+    <style>
+      body {
+        font-family: 'Inter', sans-serif;
+        background-color: #050505;
+        color: #e2e8f0;
+        overflow: hidden; 
+      }
+
+      /* Realistic Materials */
+      .material-plastic {
+        background-color: #1a1a1d;
+        background-image: url("https://www.transparenttextures.com/patterns/stardust.png");
+        /* More realistic overhead lighting */
+        background: linear-gradient(to bottom, #2a2a2e, #161618 80%);
+      }
+      
+      .material-rubber {
+        background-color: #202022;
+        background-image: url("https://www.transparenttextures.com/patterns/asfalt-dark.png");
+      }
+
+      /* Screen Effects */
+      .pixel-grid {
+        background-image: 
+          linear-gradient(0deg, transparent 2px, rgba(0, 0, 0, 0.4) 3px),
+          linear-gradient(90deg, transparent 2px, rgba(0, 0, 0, 0.4) 3px);
+        background-size: 3px 3px;
+        pointer-events: none;
+        opacity: 0.15;
+      }
+      
+      .screen-reflection {
+        background: linear-gradient(135deg, rgba(255,255,255,0.08) 0%, transparent 40%);
+        pointer-events: none;
+      }
+
+      .lcd-glow {
+        box-shadow: 0 0 60px rgba(100, 200, 255, 0.05);
+      }
+      
+      .screen-vignette {
+        box-shadow: inset 0 0 100px 30px rgba(0,0,0,0.85);
+        pointer-events: none;
+      }
+
+      /* 3D Hardware Elements */
+      .screw {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: radial-gradient(circle at 30% 30%, #555, #111);
+        box-shadow: 0 1px 1px rgba(255,255,255,0.1);
+        position: relative;
+      }
+      .screw::after {
+         content: "";
+         position: absolute;
+         top: 50%; left: 50%;
+         width: 60%; height: 15%;
+         background: #000;
+         transform: translate(-50%, -50%) rotate(45deg);
+      }
+      .screw::before {
+         content: "";
+         position: absolute;
+         top: 50%; left: 50%;
+         width: 60%; height: 15%;
+         background: #000;
+         transform: translate(-50%, -50%) rotate(-45deg);
+      }
+      
+      .bezel-frame {
+        padding: 2px;
+        background: linear-gradient(145deg, #1f1f22, #111113);
+        border-radius: 4px;
+        box-shadow: 
+            0 15px 35px rgba(0,0,0,0.8),
+            inset 0 3px 3px #3a3a3e,
+            inset 0 -3px 3px #08080a;
+      }
+
+      /* Scrollbar for internal screen content */
+      ::-webkit-scrollbar {
+        width: 6px;
+      }
+      ::-webkit-scrollbar-track {
+        background: #000; 
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #333; 
+        border: 1px solid #000;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #444; 
+      }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "react": "https://esm.sh/react@^19.2.3",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "@google/genai": "https://esm.sh/@google/genai@^1.34.0",
+    "lucide-react": "https://esm.sh/lucide-react@^0.562.0",
+    "recharts": "https://esm.sh/recharts@^3.6.0"
+  }
+}
+</script>
+</head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>
