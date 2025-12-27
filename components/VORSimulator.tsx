@@ -1,43 +1,103 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { Plane, Target, ChevronLeft, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, AlertCircle, Play, Navigation2, RefreshCw, Info, CheckCircle, Award, Map, BarChart2 } from 'lucide-react';
+
+import React, { useEffect, useRef, useState, useMemo } from 'react';
+import { Plane, Target, ChevronLeft, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, AlertCircle, Play, Navigation2, RefreshCw, Info, CheckCircle, Award, Map, BarChart2, Activity, Zap, BookOpen, X } from 'lucide-react';
 import { playSound } from '../services/audioService.ts';
 
 interface VORSimulatorProps {
   type: 'VOR' | 'HSI';
+  missionId?: string | null;
   onExit: () => void;
 }
 
-const VORSimulator: React.FC<VORSimulatorProps> = ({ type, onExit }) => {
+const VORSimulator: React.FC<VORSimulatorProps> = ({ type, missionId = 'f-vor', onExit }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const reviewCanvasRef = useRef<HTMLCanvasElement>(null);
   const pathRef = useRef<{ x: number, y: number }[]>([]);
   const aircraftImgRef = useRef<HTMLImageElement | null>(null);
   
+  const isHomingMission = missionId === 'f-homing';
+  const stationPos = { x: 0, y: -5000 }; 
+
+  // Helper to generate randomized start position for homing missions
+  const getInitialPosition = () => {
+    if (!isHomingMission) return { x: 0, y: 0 };
+    
+    // Distance between 3500 and 5500 units from the station
+    const radius = 3500 + Math.random() * 2000;
+    // Random angle around the station
+    const angle = Math.random() * Math.PI * 2;
+    
+    return {
+        x: stationPos.x + Math.cos(angle) * radius,
+        y: stationPos.y + Math.sin(angle) * radius
+    };
+  };
+
   const [isPaused, setIsPaused] = useState(true);
   const [isCompleted, setIsCompleted] = useState(false);
   const [showReviewMap, setShowReviewMap] = useState(false);
+  const [showCdiExplanation, setShowCdiExplanation] = useState(false);
+  const [engineHealth, setEngineHealth] = useState(100);
+  const [emergencyAlert, setEmergencyAlert] = useState(false);
   
-  const [planePos, setPlanePos] = useState({ x: 0, y: 0 }); 
-  const [heading, setHeading] = useState(0);
-  const [obs, setObs] = useState(0);
+  // Use initialized random position
+  const [planePos, setPlanePos] = useState(getInitialPosition()); 
+  // Randomize initial heading for homing missions to prevent "lucky" alignment
+  const [heading, setHeading] = useState(isHomingMission ? Math.floor(Math.random() * 360) : 0);
+  const [obs, setObs] = useState(isHomingMission ? 0 : 0);
   const [radial, setRadial] = useState(0);
   const [isTo, setIsTo] = useState(true);
   const [isOff, setIsOff] = useState(false);
   const [cdiDeflection, setCdiDeflection] = useState(0);
   const [velocity, setVelocity] = useState(0.4); 
-  const [headingBug, setHeadingBug] = useState(0);
+  const [headingBug, setHeadingBug] = useState(heading);
   
-  const [phase, setPhase] = useState<'INBOUND' | 'OUTBOUND'>('INBOUND');
+  const [phase, setPhase] = useState<'INBOUND' | 'OUTBOUND' | 'HOMING'>(isHomingMission ? 'HOMING' : 'INBOUND');
   const [passageAlert, setPassageAlert] = useState(false);
   const [showPassageExplanation, setShowPassageExplanation] = useState(false);
   const [steerCombo, setSteerCombo] = useState({ dir: null as 'left' | 'right' | null, count: 0, lastTime: 0 });
 
   const AIRCRAFT_IMG_URL = "https://lh3.googleusercontent.com/d/1ahthu2ZsyfNcYGsQPI9K9GiIxqM8JUI1";
-  const stationPos = { x: 0, y: -5000 }; 
   const crosswindX = 0.12; 
 
   const currentDmeValue = Math.hypot(planePos.x - stationPos.x, planePos.y - stationPos.y) / 100;
   const currentDme = currentDmeValue.toFixed(1);
+
+  // Generate procedural environment features
+  const envFeatures = useMemo(() => {
+    const features: { x: number, y: number, type: 'tree' | 'dirt' | 'road' | 'bush', size: number, rotation?: number }[] = [];
+    if (!isHomingMission) return [];
+    
+    // Seeded random for consistency
+    let seed = 42;
+    const random = () => {
+        seed = (seed * 9301 + 49297) % 233280;
+        return seed / 233280;
+    };
+
+    // Trees & Bushes
+    for (let i = 0; i < 400; i++) {
+        features.push({
+            x: (random() - 0.5) * 20000,
+            y: (random() - 0.5) * 20000 - 5000,
+            type: random() > 0.3 ? 'tree' : 'bush',
+            size: 15 + random() * 20
+        });
+    }
+
+    // Dirt Patches
+    for (let i = 0; i < 100; i++) {
+        features.push({
+            x: (random() - 0.5) * 15000,
+            y: (random() - 0.5) * 15000 - 5000,
+            type: 'dirt',
+            size: 100 + random() * 300,
+            rotation: random() * Math.PI
+        });
+    }
+
+    return features;
+  }, [isHomingMission]);
 
   useEffect(() => {
     const img = new Image();
@@ -56,11 +116,29 @@ const VORSimulator: React.FC<VORSimulatorProps> = ({ type, onExit }) => {
 
     const update = () => {
       if (!isPaused && !showPassageExplanation && !isCompleted) {
+        
+        // Handle Engine Trouble
+        if (isHomingMission && engineHealth > 40) {
+            const runtime = pathRef.current.length;
+            if (runtime > 200) {
+                setEngineHealth(prev => Math.max(40, prev - 0.05));
+                if (!emergencyAlert && runtime > 300) {
+                    setEmergencyAlert(true);
+                    playSound('click');
+                }
+            }
+        }
+
         setPlanePos(prev => {
           const rad = (heading - 90) * (Math.PI / 180);
-          const drift = velocity > 0 ? crosswindX : 0;
-          const newX = prev.x + Math.cos(rad) * velocity + drift;
-          const newY = prev.y + Math.sin(rad) * velocity;
+          const drift = (velocity > 0 && !isHomingMission) ? crosswindX : 0; // Disable constant drift in homing to focus on raw nav
+          
+          // Engine trouble reduces performance
+          const powerLoss = isHomingMission && engineHealth < 100 ? (engineHealth / 100) : 1;
+          const currentVel = velocity * powerLoss;
+
+          const newX = prev.x + Math.cos(rad) * currentVel + drift;
+          const newY = prev.y + Math.sin(rad) * currentVel;
           
           const lastPoint = pathRef.current[pathRef.current.length - 1];
           if (!lastPoint || Math.hypot(lastPoint.x - newX, lastPoint.y - newY) > 5) {
@@ -71,6 +149,7 @@ const VORSimulator: React.FC<VORSimulatorProps> = ({ type, onExit }) => {
           const dy = newY - stationPos.y;
           const distToStation = Math.hypot(dx, dy) / 100;
 
+          // VOR Logic
           let angle = Math.atan2(dy, dx) * (180 / Math.PI) + 90;
           while (angle < 0) angle += 360;
           while (angle >= 360) angle -= 360;
@@ -84,21 +163,27 @@ const VORSimulator: React.FC<VORSimulatorProps> = ({ type, onExit }) => {
           const isActuallyTo = Math.abs(diff) > 90;
           setIsOff(distToStation < 0.25);
 
-          if (phase === 'INBOUND' && distToStation < 0.5) {
-             setShowPassageExplanation(true);
-             setIsPaused(true);
-             return prev;
-          }
-
-          if (phase === 'INBOUND' && !isActuallyTo) {
-             setPhase('OUTBOUND');
-             setPassageAlert(true);
-             playSound('click');
-             setTimeout(() => setPassageAlert(false), 4000);
-          }
-
-          if (phase === 'OUTBOUND' && distToStation >= 12.0 && Math.abs(currentRadial - 360) < 5) {
-            setIsCompleted(true);
+          // Homing Logic Completion: Reaching the Airport
+          if (isHomingMission) {
+             if (distToStation < 0.3) {
+                setIsCompleted(true);
+             }
+          } else {
+             // Standard Radial Mission Logic
+             if (phase === 'INBOUND' && distToStation < 0.5) {
+                setShowPassageExplanation(true);
+                setIsPaused(true);
+                return prev;
+             }
+             if (phase === 'INBOUND' && !isActuallyTo) {
+                setPhase('OUTBOUND');
+                setPassageAlert(true);
+                playSound('click');
+                setTimeout(() => setPassageAlert(false), 4000);
+             }
+             if (phase === 'OUTBOUND' && distToStation >= 12.0 && Math.abs(currentRadial - 360) < 5) {
+                setIsCompleted(true);
+             }
           }
           
           setIsTo(isActuallyTo);
@@ -117,24 +202,61 @@ const VORSimulator: React.FC<VORSimulatorProps> = ({ type, onExit }) => {
       const centerX = canvas.width / 2;
       const centerY = canvas.height / 2;
 
-      ctx.fillStyle = '#050505';
+      // BACKGROUND COLORS
+      ctx.fillStyle = isHomingMission ? '#2d4c1e' : '#050505';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
       ctx.save();
       ctx.translate(centerX, centerY);
 
-      // Grid
-      ctx.strokeStyle = '#ffffff06';
+      // RENDER ENVIRONMENT FEATURES
+      if (isHomingMission) {
+          envFeatures.forEach(feat => {
+              const drawX = feat.x - planePos.x;
+              const drawY = feat.y - planePos.y;
+              
+              // Only draw if on screen
+              if (Math.abs(drawX) < 1000 && Math.abs(drawY) < 1000) {
+                  if (feat.type === 'tree') {
+                      ctx.fillStyle = '#1e3314';
+                      ctx.beginPath(); ctx.arc(drawX, drawY, feat.size, 0, Math.PI * 2); ctx.fill();
+                      ctx.fillStyle = '#26421a';
+                      ctx.beginPath(); ctx.arc(drawX - 2, drawY - 2, feat.size * 0.7, 0, Math.PI * 2); ctx.fill();
+                  } else if (feat.type === 'bush') {
+                      ctx.fillStyle = '#3a5a2b';
+                      ctx.beginPath(); ctx.arc(drawX, drawY, feat.size, 0, Math.PI * 2); ctx.fill();
+                  } else if (feat.type === 'dirt') {
+                      ctx.save();
+                      ctx.translate(drawX, drawY);
+                      ctx.rotate(feat.rotation || 0);
+                      ctx.fillStyle = '#4a3c2a';
+                      ctx.fillRect(-feat.size/2, -feat.size/4, feat.size, feat.size/2);
+                      ctx.restore();
+                  }
+              }
+          });
+
+          // Draw Roads
+          ctx.strokeStyle = '#333';
+          ctx.lineWidth = 40;
+          ctx.beginPath();
+          ctx.moveTo(-10000 - planePos.x, -10000 - planePos.y);
+          ctx.lineTo(10000 - planePos.x, -10000 - planePos.y);
+          ctx.stroke();
+      }
+
+      // Grid (More subtle in homing)
+      ctx.strokeStyle = isHomingMission ? '#ffffff04' : '#ffffff06';
       ctx.lineWidth = 1;
       const gridSize = 150;
       const startX = Math.floor((planePos.x - centerX) / gridSize) * gridSize;
       const startY = Math.floor((planePos.y - centerY) / gridSize) * gridSize;
 
       for (let x = startX - 2000; x < startX + 2000; x += gridSize) {
-        ctx.beginPath(); ctx.moveTo(x - planePos.x, -6000); ctx.lineTo(x - planePos.x, 6000); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(x - planePos.x, -15000); ctx.lineTo(x - planePos.x, 15000); ctx.stroke();
       }
       for (let y = startY - 2000; y < startY + 2000; y += gridSize) {
-        ctx.beginPath(); ctx.moveTo(-6000, y - planePos.y); ctx.lineTo(6000, y - planePos.y); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(-15000, y - planePos.y); ctx.lineTo(15000, y - planePos.y); ctx.stroke();
       }
 
       // Trail
@@ -154,12 +276,47 @@ const VORSimulator: React.FC<VORSimulatorProps> = ({ type, onExit }) => {
       ctx.stroke();
       ctx.restore();
 
-      // Radials
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
-      ctx.lineWidth = 2;
+      // STATION / AIRPORT RENDERING
       const sX = stationPos.x - planePos.x;
       const sY = stationPos.y - planePos.y;
-      ctx.beginPath(); ctx.moveTo(sX, sY); ctx.lineTo(sX, sY + 10000); ctx.moveTo(sX, sY); ctx.lineTo(sX, sY - 10000); ctx.stroke();
+
+      if (isHomingMission) {
+          // Draw Airport / Runway
+          ctx.fillStyle = '#111';
+          ctx.fillRect(sX - 40, sY - 300, 80, 600);
+          
+          // Markings
+          ctx.strokeStyle = '#fff';
+          ctx.lineWidth = 2;
+          ctx.setLineDash([20, 20]);
+          ctx.beginPath(); ctx.moveTo(sX, sY - 250); ctx.lineTo(sX, sY + 250); ctx.stroke();
+          ctx.setLineDash([]);
+          
+          // Thresholds
+          ctx.fillRect(sX - 35, sY - 290, 70, 10);
+          ctx.fillRect(sX - 35, sY + 280, 70, 10);
+          
+          // Identifier
+          ctx.fillStyle = '#fff';
+          ctx.font = 'bold 20px "Share Tech Mono"';
+          ctx.fillText("36", sX - 10, sY + 270);
+          
+          // Airport Label
+          ctx.font = 'black 12px "Share Tech Mono"';
+          ctx.fillText("CENTRAL AIRPORT (VOR: WMT)", sX + 50, sY);
+      } else {
+          // Standard VOR Station
+          ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+          ctx.lineWidth = 2;
+          ctx.beginPath(); ctx.moveTo(sX, sY); ctx.lineTo(sX, sY + 10000); ctx.moveTo(sX, sY); ctx.lineTo(sX, sY - 10000); ctx.stroke();
+      }
+
+      // Station Beacon
+      const gradient = ctx.createRadialGradient(sX, sY, 0, sX, sY, 40);
+      gradient.addColorStop(0, 'rgba(255, 204, 0, 0.3)'); gradient.addColorStop(1, 'rgba(255, 204, 0, 0)');
+      ctx.fillStyle = gradient; ctx.beginPath(); ctx.arc(sX, sY, 40, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#FFCC00'; ctx.beginPath(); ctx.arc(sX, sY, 10, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(sX, sY, 20, 0, Math.PI * 2); ctx.stroke();
 
       ctx.restore();
 
@@ -181,7 +338,7 @@ const VORSimulator: React.FC<VORSimulatorProps> = ({ type, onExit }) => {
 
     update();
     return () => cancelAnimationFrame(animationFrameId);
-  }, [isPaused, isCompleted, heading, velocity, obs, planePos, stationPos, phase, showPassageExplanation]);
+  }, [isPaused, isCompleted, heading, velocity, obs, planePos, stationPos, phase, showPassageExplanation, engineHealth, emergencyAlert, isHomingMission]);
 
   // Review Map Drawing Effect
   useEffect(() => {
@@ -190,12 +347,10 @@ const VORSimulator: React.FC<VORSimulatorProps> = ({ type, onExit }) => {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // Fixed zoomed out view
-    ctx.fillStyle = '#080808';
+    ctx.fillStyle = isHomingMission ? '#1e3314' : '#080808';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     const padding = 60;
-    // Calculate bounds including station and entire flight path
     let minX = stationPos.x, maxX = stationPos.x, minY = stationPos.y, maxY = stationPos.y;
     pathRef.current.forEach(p => {
         minX = Math.min(minX, p.x);
@@ -204,7 +359,6 @@ const VORSimulator: React.FC<VORSimulatorProps> = ({ type, onExit }) => {
         maxY = Math.max(maxY, p.y);
     });
 
-    // Add current position to bounds
     minX = Math.min(minX, planePos.x);
     maxX = Math.max(maxX, planePos.x);
     minY = Math.min(minY, planePos.y);
@@ -212,33 +366,14 @@ const VORSimulator: React.FC<VORSimulatorProps> = ({ type, onExit }) => {
 
     const dataWidth = maxX - minX || 1;
     const dataHeight = maxY - minY || 1;
-    
     const availableWidth = canvas.width - padding * 2;
     const availableHeight = canvas.height - padding * 2;
-
     const scale = Math.min(availableWidth / dataWidth, availableHeight / dataHeight);
-    
-    // Centering offsets
     const offsetX = (availableWidth - dataWidth * scale) / 2 + padding;
     const offsetY = (availableHeight - dataHeight * scale) / 2 + padding;
 
     const mapX = (x: number) => (x - minX) * scale + offsetX;
     const mapY = (y: number) => (y - minY) * scale + offsetY;
-
-    // Draw Grid
-    ctx.strokeStyle = '#ffffff0a';
-    ctx.lineWidth = 1;
-    for(let i=0; i<canvas.width; i+=50) { ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, canvas.height); ctx.stroke(); }
-    for(let i=0; i<canvas.height; i+=50) { ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(canvas.width, i); ctx.stroke(); }
-
-    // Draw Target Radials (full course through station)
-    ctx.strokeStyle = 'rgba(0, 255, 255, 0.1)';
-    ctx.setLineDash([5, 5]);
-    const sX = mapX(stationPos.x);
-    const sY = mapY(stationPos.y);
-    // Draw full vertical line through station representing radial 360/180
-    ctx.beginPath(); ctx.moveTo(sX, 0); ctx.lineTo(sX, canvas.height); ctx.stroke();
-    ctx.setLineDash([]);
 
     // Draw Flight Path
     ctx.strokeStyle = '#ef4444';
@@ -254,32 +389,15 @@ const VORSimulator: React.FC<VORSimulatorProps> = ({ type, onExit }) => {
     ctx.stroke();
 
     // Draw Station Marker
+    const sX = mapX(stationPos.x);
+    const sY = mapY(stationPos.y);
     ctx.fillStyle = '#FFCC00';
     ctx.beginPath(); ctx.arc(sX, sY, 6, 0, Math.PI * 2); ctx.fill();
     ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(sX, sY, 12, 0, Math.PI * 2); ctx.stroke();
-    ctx.shadowBlur = 0;
-    ctx.fillStyle = '#fff'; ctx.font = 'bold 10px "Share Tech Mono"'; ctx.fillText("VOR STATION", sX + 18, sY + 4);
+    ctx.fillStyle = '#fff'; ctx.font = 'bold 10px "Share Tech Mono"'; 
+    ctx.fillText(isHomingMission ? "TARGET AIRPORT" : "VOR STATION", sX + 18, sY + 4);
 
-    // Start point
-    const p0 = pathRef.current[0];
-    if (p0) {
-        ctx.fillStyle = '#00FF00';
-        ctx.beginPath(); ctx.arc(mapX(p0.x), mapY(p0.y), 5, 0, Math.PI * 2); ctx.fill();
-        ctx.fillStyle = '#fff'; ctx.fillText("START", mapX(p0.x) + 10, mapY(p0.y) + 4);
-    }
-    
-    // End point (Aircraft icon)
-    const endX = mapX(planePos.x);
-    const endY = mapY(planePos.y);
-    ctx.save();
-    ctx.translate(endX, endY);
-    ctx.rotate(heading * (Math.PI / 180));
-    ctx.fillStyle = '#00FFFF';
-    ctx.beginPath(); ctx.moveTo(0, -10); ctx.lineTo(-8, 6); ctx.lineTo(0, 3); ctx.lineTo(8, 6); ctx.closePath(); ctx.fill();
-    ctx.restore();
-    ctx.fillStyle = '#00FFFF'; ctx.fillText("END", endX + 10, endY + 4);
-
-  }, [showReviewMap]);
+  }, [showReviewMap, isHomingMission]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -317,6 +435,18 @@ const VORSimulator: React.FC<VORSimulatorProps> = ({ type, onExit }) => {
   };
 
   const syncHeadingBug = () => { playSound('click'); setHeadingBug(heading); };
+
+  const centerCDI = () => {
+    playSound('click');
+    // Centering the CDI in this context means setting the OBS to the current radial bearing to the station
+    // If we are "TO" the station, we want the bearing that centers the needle with a TO flag
+    let targetObs = radial;
+    if (isTo) {
+        // Keep radial as is if it's already a "TO" radial or adjust
+        targetObs = (radial + 180) % 360;
+    }
+    setObs(targetObs);
+  };
 
   const closeExplanation = () => {
       playSound('click');
@@ -439,6 +569,61 @@ const VORSimulator: React.FC<VORSimulatorProps> = ({ type, onExit }) => {
   return (
     <div className="h-full w-full bg-black flex flex-col font-mono text-white overflow-hidden relative">
       
+      {/* CDI EXPLANATION MODAL */}
+      {showCdiExplanation && (
+        <div className="absolute inset-0 z-[300] flex items-center justify-center bg-black/90 backdrop-blur-xl animate-fade-in pointer-events-auto p-4">
+             <div className="max-w-3xl w-full bg-[#111] border-2 border-g1000-cyan rounded-[2rem] shadow-[0_0_100px_rgba(0,255,255,0.2)] overflow-hidden flex flex-col">
+                <div className="bg-g1000-cyan/10 p-6 flex justify-between items-center border-b border-g1000-cyan/30">
+                    <div className="flex items-center gap-3">
+                        <BookOpen className="w-6 h-6 text-g1000-cyan" />
+                        <h2 className="text-xl font-black uppercase tracking-widest text-white">Avionics Theory: Centering the CDI</h2>
+                    </div>
+                    <button onClick={() => setShowCdiExplanation(false)} className="text-zinc-500 hover:text-white transition-colors">
+                        <X className="w-6 h-6" />
+                    </button>
+                </div>
+                <div className="p-8 overflow-y-auto custom-scrollbar max-h-[70vh] space-y-8">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <div className="space-y-4">
+                            <div className="bg-zinc-900/50 p-6 rounded-2xl border border-white/5">
+                                <h3 className="text-g1000-amber font-black uppercase tracking-widest text-sm mb-2">Traditional VOR</h3>
+                                <p className="text-xs text-zinc-400 leading-relaxed">
+                                    A VOR (Omni) is position-sensitive but not heading-sensitive. If the CDI is centered with a <span className="text-g1000-green font-bold">TO</span> flag, the OBS displays the <strong>Magnetic Bearing to the Station</strong>. In an emergency, you center the needle to instantly find your required course to safety.
+                                </p>
+                            </div>
+                            <div className="bg-zinc-900/50 p-6 rounded-2xl border border-white/5">
+                                <h3 className="text-g1000-magenta font-black uppercase tracking-widest text-sm mb-2">Digital HSI</h3>
+                                <p className="text-xs text-zinc-400 leading-relaxed">
+                                    The HSI combines the compass and VOR. Centering the course needle aligns the "Course Arrow" with your current bearing. This allows for <strong>Command Steering</strong>—simply overlaying the aircraft icon on the needle to fly direct.
+                                </p>
+                            </div>
+                        </div>
+                        <div className="bg-black/40 p-6 rounded-2xl border border-dashed border-zinc-800 flex flex-col justify-center">
+                            <h4 className="text-white font-black uppercase tracking-widest text-xs mb-4 text-center">Emergency "Direct-To" Logic</h4>
+                            <div className="space-y-3">
+                                <div className="flex items-start gap-3">
+                                    <CheckCircle className="w-4 h-4 text-g1000-green shrink-0 mt-0.5" />
+                                    <p className="text-[11px] text-zinc-300">Centering the CDI eliminates mental geometry during high-stress failure events.</p>
+                                </div>
+                                <div className="flex items-start gap-3">
+                                    <CheckCircle className="w-4 h-4 text-g1000-green shrink-0 mt-0.5" />
+                                    <p className="text-[11px] text-zinc-300">It provides a precise radial to track, ensuring crosswind drift is immediately visible.</p>
+                                </div>
+                                <div className="flex items-start gap-3">
+                                    <CheckCircle className="w-4 h-4 text-g1000-green shrink-0 mt-0.5" />
+                                    <p className="text-[11px] text-zinc-300">For {type} specifically, it allows the pilot to focus solely on glide slope and airspeed.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div className="bg-zinc-950 p-6 border-t border-white/5">
+                    <button onClick={() => setShowCdiExplanation(false)} className="w-full bg-g1000-cyan text-black py-3 rounded-xl font-black uppercase tracking-widest text-xs hover:brightness-110 active:scale-[0.98] transition-all">Understood, Returning to Cockpit</button>
+                </div>
+             </div>
+        </div>
+      )}
+
       {/* COMPLETION MODAL */}
       {isCompleted && (
         <div className="absolute inset-0 z-[200] flex items-center justify-center bg-black/95 backdrop-blur-xl animate-fade-in pointer-events-auto">
@@ -457,24 +642,29 @@ const VORSimulator: React.FC<VORSimulatorProps> = ({ type, onExit }) => {
                         <canvas ref={reviewCanvasRef} width={800} height={450} className="w-full h-full object-contain" />
                         <div className="absolute bottom-4 left-6 flex flex-col gap-1 pointer-events-none">
                             <div className="flex items-center gap-2"><div className="w-3 h-3 bg-[#ef4444] rounded-sm"></div><span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">YOUR FLIGHT PATH</span></div>
-                            <div className="flex items-center gap-2"><div className="w-3 h-3 bg-g1000-cyan/10 border border-g1000-cyan/30 rounded-sm"></div><span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">COURSE RADIAL</span></div>
+                            <div className="flex items-center gap-2"><div className="w-3 h-3 bg-g1000-cyan/10 border border-g1000-cyan/30 rounded-sm"></div><span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">TARGET {isHomingMission ? "AIRPORT" : "RADIAL"}</span></div>
                         </div>
                     </div>
                     <div className="grid grid-cols-3 gap-6 w-full mt-8">
                          <div className="bg-zinc-900/50 p-4 rounded-2xl border border-white/5"><span className="block text-[8px] text-zinc-600 uppercase mb-1">Total Distance</span><span className="text-xl font-black text-white">{(pathRef.current.length * 0.05).toFixed(1)} NM</span></div>
-                         <div className="bg-zinc-900/50 p-4 rounded-2xl border border-white/5"><span className="block text-[8px] text-zinc-600 uppercase mb-1">Max Deviation</span><span className="text-xl font-black text-g1000-amber">0.4 NM</span></div>
+                         <div className="bg-zinc-900/50 p-4 rounded-2xl border border-white/5"><span className="block text-[8px] text-zinc-600 uppercase mb-1">Max Deviation</span><span className="text-xl font-black text-g1000-amber">{isHomingMission ? "N/A" : "0.4 NM"}</span></div>
                          <div className="bg-zinc-900/50 p-4 rounded-2xl border border-white/5"><span className="block text-[8px] text-zinc-600 uppercase mb-1">Avg Groundspeed</span><span className="text-xl font-black text-g1000-green">140 KTS</span></div>
                     </div>
                   </div>
                 ) : (
                   <div className="flex flex-col items-center text-center animate-fade-in">
                     <div className="w-24 h-24 bg-g1000-green/20 rounded-full flex items-center justify-center mb-4"><Award className="w-16 h-16 text-g1000-green" /></div>
-                    <h2 className="text-4xl font-black text-white tracking-widest uppercase">Simulation Complete</h2>
+                    <h2 className="text-4xl font-black text-white tracking-widest uppercase">{isHomingMission ? "Emergency Landed" : "Simulation Complete"}</h2>
                     <div className="mt-4 space-y-4 text-zinc-400">
-                        <p className="text-lg leading-relaxed max-w-lg">Excellent work! You have <span className="text-white">successfully tracked</span> the station inbound and outbound.</p>
+                        <p className="text-lg leading-relaxed max-w-lg">
+                          {isHomingMission 
+                            ? "Superior pilot skills! You navigated an engine failure and safely reached the runway threshold." 
+                            : "Excellent work! You have successfully tracked the station inbound and outbound."
+                          }
+                        </p>
                         <div className="grid grid-cols-2 gap-4 mt-8">
                             <div className="bg-zinc-900 p-6 rounded-3xl border border-white/5 text-center"><span className="block text-[10px] text-zinc-600 uppercase tracking-widest font-black mb-1">Performance</span><span className="text-3xl font-black text-g1000-cyan uppercase tracking-tighter">Qualified</span></div>
-                            <div className="bg-zinc-900 p-6 rounded-3xl border border-white/5 text-center"><span className="block text-[10px] text-zinc-600 uppercase tracking-widest font-black mb-1">Final DME</span><span className="text-3xl font-black text-g1000-green">{currentDme} NM</span></div>
+                            <div className="bg-zinc-900 p-6 rounded-3xl border border-white/5 text-center"><span className="block text-[10px] text-zinc-600 uppercase tracking-widest font-black mb-1">Landing Dist</span><span className="text-3xl font-black text-g1000-green">{currentDme} NM</span></div>
                         </div>
                     </div>
                     <div className="flex gap-4 w-full mt-10">
@@ -491,18 +681,57 @@ const VORSimulator: React.FC<VORSimulatorProps> = ({ type, onExit }) => {
         </div>
       )}
 
+      {/* EMERGENCY ALERT OVERLAY */}
+      {emergencyAlert && !isCompleted && !isPaused && (
+          <div className="absolute top-10 left-1/2 -translate-x-1/2 z-[100] animate-bounce w-full max-w-xl">
+              <div className="bg-red-600 text-white px-8 py-4 rounded-2xl border-2 border-white shadow-[0_0_60px_rgba(255,0,0,0.8)] flex items-center justify-between gap-6 backdrop-blur-md">
+                  <div className="flex items-center gap-4">
+                    <Zap className="w-8 h-8 animate-pulse" />
+                    <div>
+                        <h5 className="font-black tracking-widest uppercase text-base">Engine Failure Detected</h5>
+                        <p className="text-[10px] font-bold uppercase opacity-80">Navigate directly to airport (VOR Station)</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-3">
+                      <button 
+                        onClick={centerCDI}
+                        className="bg-white text-red-600 px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-zinc-100 transition-all active:scale-95 shadow-xl"
+                      >
+                        Center CDI
+                      </button>
+                      <button 
+                        onClick={() => { playSound('click'); setShowCdiExplanation(true); }}
+                        className="bg-red-800 text-white p-2.5 rounded-xl border border-white/20 hover:bg-red-700 transition-colors"
+                        title="Theory: Why center the CDI?"
+                      >
+                        <BookOpen className="w-5 h-5" />
+                      </button>
+                  </div>
+              </div>
+          </div>
+      )}
+
       {/* INITIAL BRIEFING POPUP */}
       {isPaused && !showPassageExplanation && !isCompleted && (
         <div className="absolute inset-0 z-[100] flex flex-col items-center justify-center bg-transparent pointer-events-auto">
            <div className="bg-black border-2 border-white p-6 shadow-[0_0_80px_rgba(0,0,0,1)] w-[320px] animate-pulse">
               <div className="flex items-center gap-2 mb-4">
                  <div className="p-1 bg-white text-black rounded-sm flex items-center justify-center overflow-hidden"><img src={AIRCRAFT_IMG_URL} className="w-5 h-5 object-contain" alt="HSI Icon" /></div>
-                 <span className="text-[12px] font-black tracking-[0.3em] uppercase">Initial Briefing</span>
+                 <span className="text-[12px] font-black tracking-[0.3em] uppercase">{isHomingMission ? "Emergency Brief" : "Initial Briefing"}</span>
               </div>
               <div className="space-y-4 mb-6">
-                 <p className="text-[13px] font-bold text-white leading-tight uppercase">INTERCEPT <span className="text-g1000-cyan">RADIAL 180</span>.</p>
-                 <p className="text-[10px] text-zinc-400 uppercase font-black tracking-widest leading-tight border-b border-white/5 pb-2">CENTER CDI NEEDLE. CORRECT FOR CROSSWIND.</p>
-                 <p className="text-[11px] text-g1000-amber uppercase font-black tracking-widest leading-tight pt-2 flex items-center gap-2"><Info className="w-4 h-4" /> FOLLOW THE RADIAL LINE</p>
+                 {isHomingMission ? (
+                     <>
+                        <p className="text-[13px] font-bold text-white leading-tight uppercase">MISSION: <span className="text-g1000-cyan">STATION HOMING</span>.</p>
+                        <p className="text-[10px] text-zinc-400 uppercase font-black tracking-widest leading-tight border-b border-white/5 pb-2">PREPARE FOR ENGINE FAILURE. IDENTIFY RADIAL & HOME DIRECT TO STATION.</p>
+                     </>
+                 ) : (
+                     <>
+                        <p className="text-[13px] font-bold text-white leading-tight uppercase">INTERCEPT <span className="text-g1000-cyan">RADIAL 180</span>.</p>
+                        <p className="text-[10px] text-zinc-400 uppercase font-black tracking-widest leading-tight border-b border-white/5 pb-2">CENTER CDI NEEDLE. CORRECT FOR CROSSWIND.</p>
+                     </>
+                 )}
+                 <p className="text-[11px] text-g1000-amber uppercase font-black tracking-widest leading-tight pt-2 flex items-center gap-2"><Info className="w-4 h-4" /> FIND YOUR BEARING</p>
               </div>
               <button onClick={() => setIsPaused(false)} className="w-full bg-white text-black py-3 text-[11px] font-black tracking-[0.4em] uppercase hover:bg-zinc-200 transition-all active:scale-95 flex items-center justify-center gap-2">CONTINUE</button>
            </div>
@@ -570,16 +799,6 @@ const VORSimulator: React.FC<VORSimulatorProps> = ({ type, onExit }) => {
             <ChevronLeft className="w-4 h-4 text-g1000-cyan group-hover:-translate-x-1 transition-transform" />Abort Mission
          </button>
          
-         <div className="bg-black/85 backdrop-blur-md border border-white/10 p-5 rounded-2xl text-[11px] space-y-2.5 w-96 shadow-2xl">
-            <div className="flex justify-between items-center border-b border-white/10 pb-3 mb-1"><span className="text-zinc-500 font-black tracking-widest uppercase text-[8px]">Flight Telemetry Link</span><div className="w-2 h-2 rounded-full bg-g1000-green shadow-[0_0_12px_#00FF00] animate-pulse"></div></div>
-            <div className="space-y-2">
-                <div className="flex justify-between items-center"><span className="text-zinc-400 font-bold uppercase tracking-tighter">Magnetic Heading</span><span className="text-g1000-cyan font-black text-sm">{Math.round(heading).toString().padStart(3, '0')}°</span></div>
-                <div className="flex justify-between items-center"><span className="text-zinc-400 font-bold uppercase tracking-tighter">Indicated Airspeed</span><span className="text-g1000-green font-black text-sm">{(velocity * 100).toFixed(0)} KTS</span></div>
-                <div className="flex justify-between items-center"><span className="text-zinc-400 font-bold uppercase tracking-tighter">DME Station Dist</span><span className="text-g1000-green font-black text-sm">{currentDme} NM</span></div>
-                <div className="flex justify-between items-center pt-2 border-t border-white/10"><span className="text-zinc-400 font-bold uppercase tracking-tighter">Current Radial</span><span className="text-g1000-amber font-black text-sm">{radial.toString().padStart(3, '0')}°</span></div>
-            </div>
-         </div>
-
          <div className="bg-zinc-900/95 backdrop-blur-md border border-white/10 p-3.5 px-5 rounded-2xl flex flex-col items-center gap-2 shadow-2xl w-96">
             <span className="text-[8px] text-zinc-500 font-black uppercase tracking-widest">Power Control</span>
             <div className="flex items-center gap-12">
@@ -593,7 +812,7 @@ const VORSimulator: React.FC<VORSimulatorProps> = ({ type, onExit }) => {
       </div>
 
       {/* DEFLECTION CAUTION */}
-      {Math.abs(cdiDeflection) > 0.05 && !isPaused && !isCompleted && (
+      {Math.abs(cdiDeflection) > 0.05 && !isPaused && !isCompleted && !isHomingMission && (
         <div className="absolute bottom-12 left-1/2 -translate-x-1/2 z-[60] animate-fade-in pointer-events-none">
            <div className="bg-black/90 border-2 border-red-600 p-5 shadow-[0_0_50px_rgba(255,0,0,0.5)] flex flex-col items-center gap-3 min-w-[320px] backdrop-blur-md rounded-2xl">
               <div className="flex items-center gap-3 text-red-500 font-black tracking-[0.25em] uppercase text-[10px]"><AlertCircle className="w-5 h-5 animate-pulse" /> NAVIGATION ALERT: WIND DRIFT</div>
@@ -606,20 +825,52 @@ const VORSimulator: React.FC<VORSimulatorProps> = ({ type, onExit }) => {
 
       {/* RIGHT SIDEBAR - TOP RIGHT */}
       <div className="absolute top-8 right-8 z-50 flex flex-col items-end gap-6">
-        <div className="bg-zinc-950/90 border border-white/10 p-8 rounded-[2.5rem] shadow-2xl max-w-[300px] animate-fade-in relative overflow-hidden backdrop-blur-md">
+        <div className="bg-zinc-950/90 border border-white/10 p-8 rounded-[2.5rem] shadow-2xl w-full max-w-[300px] animate-fade-in relative overflow-hidden backdrop-blur-md">
            <div className="absolute top-0 right-0 w-32 h-32 bg-g1000-cyan/5 blur-[80px] rounded-full"></div>
            <div className="flex items-center gap-3 mb-6 relative"><div className="p-3 bg-g1000-cyan/10 rounded-xl"><Target className="w-5 h-5 text-g1000-cyan animate-pulse" /></div><span className="text-sm font-black tracking-[0.25em] uppercase text-white">Flight Plan Objective</span></div>
            <div className="space-y-4">
-              <div className="flex items-center justify-end gap-4">
-                 <span className={`text-[11px] font-black uppercase tracking-widest ${phase === 'INBOUND' ? 'text-g1000-cyan' : 'text-zinc-500 line-through'}`}>1. Inbound Radial 180</span>
-                 <div className={`w-2.5 h-2.5 rounded-full ${phase === 'OUTBOUND' ? 'bg-g1000-green shadow-[0_0_12px_#00FF00]' : 'bg-zinc-800'}`}></div>
-              </div>
-              <div className="flex items-center justify-end gap-4">
-                 <span className={`text-[11px] font-black uppercase tracking-widest ${phase === 'OUTBOUND' ? 'text-g1000-cyan' : 'text-zinc-500'}`}>2. Outbound Radial 360</span>
-                 <div className={`w-2.5 h-2.5 rounded-full ${isCompleted ? 'bg-g1000-green shadow-[0_0_12px_#00FF00]' : 'bg-zinc-800 shadow-inner'}`}></div>
-              </div>
+              {isHomingMission ? (
+                  <>
+                    <div className="flex items-center justify-end gap-4">
+                       <span className={`text-[11px] font-black uppercase tracking-widest ${!emergencyAlert ? 'text-g1000-cyan' : 'text-zinc-500 line-through'}`}>1. Identify Location</span>
+                       <div className={`w-2.5 h-2.5 rounded-full ${emergencyAlert ? 'bg-g1000-green' : 'bg-zinc-800'}`}></div>
+                    </div>
+                    <div className="flex items-center justify-end gap-4">
+                       <span className={`text-[11px] font-black uppercase tracking-widest ${emergencyAlert ? 'text-red-500' : 'text-zinc-500'}`}>2. Home to Station</span>
+                       <div className={`w-2.5 h-2.5 rounded-full ${isCompleted ? 'bg-g1000-green' : (emergencyAlert ? 'bg-red-500 animate-pulse' : 'bg-zinc-800')}`}></div>
+                    </div>
+                  </>
+              ) : (
+                  <>
+                    <div className="flex items-center justify-end gap-4">
+                       <span className={`text-[11px] font-black uppercase tracking-widest ${phase === 'INBOUND' ? 'text-g1000-cyan' : 'text-zinc-500 line-through'}`}>1. Inbound Radial 180</span>
+                       <div className={`w-2.5 h-2.5 rounded-full ${phase === 'OUTBOUND' ? 'bg-g1000-green shadow-[0_0_12px_#00FF00]' : 'bg-zinc-800'}`}></div>
+                    </div>
+                    <div className="flex items-center justify-end gap-4">
+                       <span className={`text-[11px] font-black uppercase tracking-widest ${phase === 'OUTBOUND' ? 'text-g1000-cyan' : 'text-zinc-500'}`}>2. Outbound Radial 360</span>
+                       <div className={`w-2.5 h-2.5 rounded-full ${isCompleted ? 'bg-g1000-green shadow-[0_0_12px_#00FF00]' : 'bg-zinc-800 shadow-inner'}`}></div>
+                    </div>
+                  </>
+              )}
            </div>
-           <p className="text-[12px] text-zinc-400 leading-relaxed font-bold relative text-right mt-6 pt-6 border-t border-white/10">PHASE: <span className="text-g1000-amber uppercase">{phase}</span><br/>DME: <span className="text-white">{currentDme} NM</span></p>
+           <p className="text-[12px] text-zinc-400 leading-relaxed font-bold relative text-right mt-6 pt-6 border-t border-white/10">PHASE: <span className={`${isHomingMission && emergencyAlert ? 'text-red-500' : 'text-g1000-amber'} uppercase`}>{phase}</span><br/>DME: <span className="text-white">{currentDme} NM</span></p>
+        </div>
+
+        {/* FLIGHT TELEMETRY LINK - MOVED BELOW OBJECTIVES */}
+        <div className="bg-black/85 backdrop-blur-md border border-white/10 p-5 rounded-2xl text-[11px] space-y-2.5 w-full max-w-[300px] shadow-2xl animate-fade-in" style={{ animationDelay: '0.4s' }}>
+            <div className="flex justify-between items-center border-b border-white/10 pb-3 mb-1"><span className="text-zinc-500 font-black tracking-widest uppercase text-[8px]">Flight Telemetry Link</span><div className="w-2 h-2 rounded-full bg-g1000-green shadow-[0_0_12px_#00FF00] animate-pulse"></div></div>
+            <div className="space-y-2">
+                <div className="flex justify-between items-center"><span className="text-zinc-400 font-bold uppercase tracking-tighter">Magnetic Heading</span><span className="text-g1000-cyan font-black text-sm">{Math.round(heading).toString().padStart(3, '0')}°</span></div>
+                <div className="flex justify-between items-center"><span className="text-zinc-400 font-bold uppercase tracking-tighter">Indicated Airspeed</span><span className="text-g1000-green font-black text-sm">{(velocity * 100).toFixed(0)} KTS</span></div>
+                <div className="flex justify-between items-center"><span className="text-zinc-400 font-bold uppercase tracking-tighter">DME Station Dist</span><span className="text-g1000-green font-black text-sm">{currentDme} NM</span></div>
+                <div className="flex justify-between items-center pt-2 border-t border-white/10"><span className="text-zinc-400 font-bold uppercase tracking-tighter">Current Radial</span><span className="text-g1000-amber font-black text-sm">{radial.toString().padStart(3, '0')}°</span></div>
+                {isHomingMission && (
+                    <div className="flex justify-between items-center pt-2 border-t border-white/10">
+                        <span className="text-zinc-400 font-bold uppercase tracking-tighter flex items-center gap-2"><Activity className="w-3 h-3" /> Engine Health</span>
+                        <span className={`font-black text-sm ${engineHealth < 50 ? 'text-red-500 animate-pulse' : 'text-g1000-green'}`}>{engineHealth.toFixed(0)}%</span>
+                    </div>
+                )}
+            </div>
         </div>
       </div>
 

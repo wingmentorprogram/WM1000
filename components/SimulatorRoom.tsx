@@ -1,5 +1,7 @@
+
 import React, { useState, useMemo } from 'react';
-import { Plane, Compass, Navigation2, Target, MoveUpRight, ChevronLeft, ChevronRight, Radio, Activity, Award, BarChart, Settings, Play } from 'lucide-react';
+// FIX: Added missing ChevronRight to lucide-react imports
+import { Plane, Compass, Navigation2, Target, MoveUpRight, ChevronLeft, ChevronRight, ArrowRight, Radio, Activity, Award, BarChart, Settings, Play } from 'lucide-react';
 import { playSound } from '../services/audioService.ts';
 import VORSimulator from './VORSimulator.tsx';
 
@@ -34,13 +36,13 @@ const foundationSubModules: TrainingModule[] = [
   },
   { 
     id: 'f-homing', 
-    name: 'STATION HOMING', 
+    name: 'STATION HOMING (EMERGENCY)', 
     type: 'DIRECT NAVIGATION', 
     status: 'Available', 
     image: 'https://images.unsplash.com/photo-1559136555-9303baea8ebd?auto=format&fit=crop&q=80&w=1200',
-    specs: ['HOMING', 'BEARING', 'DIRECT'],
+    specs: ['HOMING', 'EMERGENCY', 'DIRECT'],
     difficulty: 'Basic',
-    objective: 'Navigate directly to a station by following the bearing pointer regardless of wind drift.'
+    objective: 'Experience an engine failure and use the VOR to home directly to the nearest airport.'
   },
   { 
     id: 'f-inbound', 
@@ -174,7 +176,7 @@ const ModuleCard: React.FC<{
                     <div key={i} className="flex items-center gap-2 text-[9px] text-white font-black uppercase tracking-widest bg-zinc-900/80 backdrop-blur-md px-3 py-1.5 rounded-md border border-white/5 group-hover:border-g1000-cyan/30 transition-colors">
                         {spec.includes('VOR') ? <Radio className="w-3 h-3 text-g1000-cyan" /> : 
                          spec.includes('TRACKING') || spec.includes('TO') ? <Target className="w-3 h-3 text-g1000-cyan" /> : 
-                         <Compass className="w-3 h-3 text-g1000-cyan" />}
+                         <Navigation2 className="w-3 h-3 text-g1000-cyan" />}
                         {spec}
                     </div>
                 ))}
@@ -188,6 +190,7 @@ const ModuleCard: React.FC<{
 
 const SimulatorRoom: React.FC = () => {
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [missionId, setMissionId] = useState<string | null>(null);
   const [isConfigOpen, setIsConfigOpen] = useState(false);
   const [selectedSimConfig, setSelectedSimConfig] = useState<'VOR' | 'HSI' | null>(null);
   const [isSimRunning, setIsSimRunning] = useState(false);
@@ -211,7 +214,7 @@ const SimulatorRoom: React.FC = () => {
   };
 
   if (isSimRunning && selectedSimConfig) {
-    return <VORSimulator type={selectedSimConfig} onExit={() => setIsSimRunning(false)} />;
+    return <VORSimulator type={selectedSimConfig} missionId={missionId} onExit={() => setIsSimRunning(false)} />;
   }
 
   if (selectedId && activeSim) {
@@ -295,13 +298,14 @@ const SimulatorRoom: React.FC = () => {
                  </div>
                  <div className="flex-1">
                     <h4 className="text-lg font-black tracking-widest uppercase text-white mb-2">Detailed Curriculum Modules</h4>
-                    <p className="text-zinc-400 text-sm leading-relaxed max-w-2xl italic">Each module represents a specific navigation capability. Select VOR Fundamentals to launch the 2D Simulator.</p>
+                    <p className="text-zinc-400 text-sm leading-relaxed max-w-2xl italic">Each module represents a specific navigation capability. Select VOR Fundamentals or Station Homing to launch the 2D Simulator.</p>
                  </div>
               </div>
               <div className="flex flex-col space-y-2">
                 {sortedSubModules.map((sub, i) => (
                   <ModuleCard key={sub.id} module={sub} index={i} onClick={() => {
-                      if (sub.id === 'f-vor') {
+                      if (sub.id === 'f-vor' || sub.id === 'f-homing') {
+                        setMissionId(sub.id);
                         setIsConfigOpen(true);
                       } else {
                         console.log("Launching simulation:", sub.id);
