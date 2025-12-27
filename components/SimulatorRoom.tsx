@@ -24,7 +24,7 @@ const difficultyRank: Record<string, number> = {
 const foundationSubModules: TrainingModule[] = [
   { 
     id: 'f-vor', 
-    name: 'VOR FUNDAMENTALS', 
+    name: 'TRACKING RADIALS AND INTRODUCTION TO INBOUND & OUTBOUND', 
     type: 'STATION IDENTIFICATION', 
     status: 'Available', 
     image: 'https://images.unsplash.com/photo-1517976487492-5750f3195933?auto=format&fit=crop&q=80&w=1200',

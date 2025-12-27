@@ -67,9 +67,6 @@ const PrimaryFlightDisplay: React.FC<PrimaryFlightDisplayProps> = ({ activePage,
   };
   
   const handleMiniMfdSelect = (id: string | number) => {
-    // We don't call the main onSelectSubPage because that also opens the menu.
-    // Instead we need a way to just change the subPageId. For now, we'll use the main one
-    // and just close the menu.
     onSelectSubPage(id);
     setIsMiniMfdOpen(false); // Close menu on selection
   };
@@ -87,9 +84,6 @@ const PrimaryFlightDisplay: React.FC<PrimaryFlightDisplayProps> = ({ activePage,
     }
   };
 
-
-  // Determine whether to show the flight instruments or the module content.
-  // Show instruments if on the default PFD page OR if a list-based module is active but no specific item has been chosen yet.
   const showInstruments = activePage === Page.PFD || (!subPageId && [Page.HANDBOOK, Page.EXAMS, Page.FORUM].includes(activePage));
 
   return (
@@ -120,7 +114,7 @@ const PrimaryFlightDisplay: React.FC<PrimaryFlightDisplayProps> = ({ activePage,
             {/* ATTITUDE INDICATOR (Background) */}
             <div className="absolute inset-0 z-0">
                 <div 
-                    className="w-[200%] h-[200%] absolute top-[-50%] left-[-50%] transition-transform duration-75 ease-linear origin-center"
+                    className="w-[200%] h-[200%] absolute top-[-50%] left-[-50%] origin-center"
                     style={{ transform: `rotate(${-roll}deg) translateY(${pitch * 4}px)` }}
                 >
                     <div className="w-full h-1/2 bg-gradient-to-b from-[#4F8DCE] to-[#2E5C9A] border-b-2 border-white"></div> {/* Sky */}
@@ -163,7 +157,7 @@ const PrimaryFlightDisplay: React.FC<PrimaryFlightDisplayProps> = ({ activePage,
                     <div className="absolute top-1/2 -translate-y-1/2 right-0 w-16 h-10 bg-black border-2 border-white flex items-center justify-center text-xl font-bold z-20 shadow-xl">
                         {Math.round(airspeed)}
                     </div>
-                    <div className="absolute right-0 top-1/2 w-full transition-transform duration-75" style={{ transform: `translateY(${(airspeed % 10) * 5}px)` }}>
+                    <div className="absolute right-0 top-1/2 w-full" style={{ transform: `translateY(${(airspeed % 10) * 5}px)` }}>
                         {[-60, -50, -40, -30, -20, -10, 0, 10, 20, 30, 40, 50, 60].map(offset => (
                             <div key={offset} className="absolute right-0 h-px bg-white w-3 flex items-center justify-end pr-5" style={{ top: `${offset * 5}px` }}>
                                 <span className="text-xs font-bold mr-1 text-white drop-shadow-md">{ (Math.round(airspeed / 10) * 10 - offset * 2) }</span>
@@ -185,7 +179,7 @@ const PrimaryFlightDisplay: React.FC<PrimaryFlightDisplayProps> = ({ activePage,
                         {Math.round(altitude)}
                     </div>
                     <div className="absolute top-[30%] left-0 w-2 h-4 bg-g1000-cyan border border-white/50"></div>
-                    <div className="absolute left-0 top-1/2 w-full transition-transform duration-75" style={{ transform: `translateY(${(altitude % 100) / 2}px)` }}>
+                    <div className="absolute left-0 top-1/2 w-full" style={{ transform: `translateY(${(altitude % 100) / 2}px)` }}>
                         {[-100, -80, -60, -40, -20, 0, 20, 40, 60, 80, 100].map(offset => (
                             <div key={offset} className="absolute left-0 h-px bg-white w-3 flex items-center justify-start pl-5" style={{ top: `${offset * 3}px` }}>
                                 <span className="text-xs font-bold ml-1 text-white drop-shadow-md">{ (Math.round(altitude / 100) * 100 - offset * 10) }</span>
@@ -201,8 +195,9 @@ const PrimaryFlightDisplay: React.FC<PrimaryFlightDisplayProps> = ({ activePage,
                     <div className="bg-black border border-white px-2 py-0.5 rounded text-lg font-bold mb-1 shadow-lg z-20">
                         {`${Math.round(heading)}`.padStart(3, '0')}°
                     </div>
+                    {/* FIXED: Removed transition-transform to prevent 360-degree flip animation crossing North */}
                     <div className="w-48 h-48 rounded-full bg-[#111]/80 border-2 border-white/30 flex items-start justify-center relative shadow-2xl overflow-hidden -mb-32">
-                        <div className="w-full h-full relative transition-transform duration-75 ease-linear" style={{ transform: `rotate(${-heading}deg)` }}>
+                        <div className="w-full h-full relative" style={{ transform: `rotate(${-heading}deg)` }}>
                             {[0, 90, 180, 270].map(deg => (
                                 <div key={deg} className="absolute top-0 left-1/2 h-full w-0.5 origin-bottom" style={{ transform: `translateX(-50%) rotate(${deg}deg)` }}>
                                     <div className="w-0.5 h-3 bg-white"></div>
