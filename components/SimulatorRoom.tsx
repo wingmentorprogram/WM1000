@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 // FIX: Added missing ChevronRight to lucide-react imports
-import { Plane, Compass, Navigation2, Target, MoveUpRight, ChevronLeft, ChevronRight, ArrowRight, Radio, Activity, Award, BarChart, Settings, Play } from 'lucide-react';
+import { Plane, Compass, Navigation2, Target, MoveUpRight, ChevronLeft, ChevronRight, ArrowRight, Radio, Activity, Award, BarChart, Settings, Play, CloudRain, Wind } from 'lucide-react';
 import { playSound } from '../services/audioService.ts';
 import VORSimulator from './VORSimulator.tsx';
 
@@ -22,6 +22,8 @@ const difficultyRank: Record<string, number> = {
   'Intermediate': 1,
   'Advanced': 2
 };
+
+// --- DATA DEFINITIONS ---
 
 const foundationSubModules: TrainingModule[] = [
   { 
@@ -46,23 +48,23 @@ const foundationSubModules: TrainingModule[] = [
   },
   { 
     id: 'f-inbound', 
-    name: 'INBOUND NAVIGATION', 
-    type: 'TO STATION LOGIC', 
+    name: 'COURSE REVERSAL & INBOUND TRACKING', 
+    type: 'PROCEDURE TURN', 
     status: 'Available', 
     image: 'https://images.unsplash.com/photo-1544016768-982d1554f0b9?auto=format&fit=crop&q=80&w=1200',
-    specs: ['INBOUND', 'TO FLAG', 'RADIAL'],
-    difficulty: 'Basic',
-    objective: 'Establish an inbound course to a VOR station with a positive TO indication.'
+    specs: ['OUTBOUND R-090', '5 DME', 'PT', 'INBOUND R-270'],
+    difficulty: 'Intermediate',
+    objective: 'Depart station on R-090. At 5 DME, execute a Procedure Turn (Standard or Non-Standard) to intercept and track inbound on R-270.'
   },
   { 
     id: 'f-outbound', 
-    name: 'OUTBOUND NAVIGATION', 
-    type: 'FROM STATION LOGIC', 
+    name: 'OUTBOUND NAVIGATION & INTERCEPTION', 
+    type: 'COURSE CHANGE', 
     status: 'Available', 
     image: 'https://images.unsplash.com/photo-1506012733861-73759c03bb0d?auto=format&fit=crop&q=80&w=1200',
-    specs: ['OUTBOUND', 'FROM FLAG', 'RADIAL'],
-    difficulty: 'Basic',
-    objective: 'Maintain a precise radial departure away from a station after passage.'
+    specs: ['OUTBOUND R-170', '5 DME', 'INTERCEPT R-160', 'FIX WM01'],
+    difficulty: 'Intermediate',
+    objective: 'Depart station on Radial 170. At 5.0 DME, execute a course change to intercept and track Radial 160 to fix WM01.'
   },
   { 
     id: 'f-tracking', 
@@ -73,10 +75,20 @@ const foundationSubModules: TrainingModule[] = [
     specs: ['TRACKING', 'WCA', 'BRACKETING'],
     difficulty: 'Intermediate',
     objective: 'Master wind correction angles (WCA) to remain on the selected radial centerline.'
+  },
+  { 
+    id: 'f-holding', 
+    name: 'PROCEDURAL TURNS & HOLDINGS', 
+    type: 'ADVANCED MANEUVERS', 
+    status: 'Available', 
+    image: 'https://images.unsplash.com/photo-1502893498066-27a1b38fdf10?auto=format&fit=crop&q=80&w=1200',
+    specs: ['HOLDING', 'PROCEDURE TURN', 'ENTRY'],
+    difficulty: 'Advanced',
+    objective: 'Learn standard holding pattern entries and execute flawless procedural turns for course reversals.'
   }
 ];
 
-const trainingScenarios: TrainingModule[] = [
+const ifrModules: TrainingModule[] = [
   { 
     id: 'vor-01', 
     name: 'UNDERSTANDING THE FOUNDATION', 
@@ -118,6 +130,54 @@ const trainingScenarios: TrainingModule[] = [
     difficulty: 'Advanced',
     objective: 'Identify the zone of confusion and execute immediate transition to outbound radials.'
   },
+];
+
+const landingModules: TrainingModule[] = [
+  {
+    id: 'l-pattern',
+    name: 'TRAFFIC PATTERN OPERATIONS',
+    type: 'VISUAL PROCEDURES',
+    status: 'Available',
+    image: 'https://images.unsplash.com/photo-1474302770737-173ee21bab63?auto=format&fit=crop&q=80&w=1200',
+    specs: ['DOWNWIND', 'BASE', 'FINAL'],
+    difficulty: 'Basic',
+    objective: 'Master the standard airport traffic pattern geometry, altitude management, and communications.'
+  },
+  {
+    id: 'l-crosswind',
+    name: 'CROSSWIND LANDING TECHNIQUES',
+    type: 'ADVANCED HANDLING',
+    status: 'Available',
+    image: 'https://images.unsplash.com/photo-1569629743817-70d8db6c323b?auto=format&fit=crop&q=80&w=1200',
+    specs: ['CRAB', 'SIDESLIP', 'GUSTS'],
+    difficulty: 'Advanced',
+    objective: 'Learn to align with the centerline in strong crosswind conditions using the wing-low method.'
+  }
+];
+
+const rootModules: TrainingModule[] = [
+    {
+        id: 'root-ifr',
+        name: 'IFR SIMULATION',
+        type: 'INSTRUMENT FLIGHT RULES',
+        status: 'Available',
+        image: 'https://images.unsplash.com/photo-1559627755-618a56a96f32?auto=format&fit=crop&q=80&w=1200',
+        specs: ['VOR', 'HSI', 'PROCEDURES'],
+        difficulty: 'Intermediate',
+        objective: 'Comprehensive instrument training including VOR tracking, interception, and holding procedures.',
+        subModules: ifrModules
+    },
+    {
+        id: 'root-land',
+        name: 'LANDINGS',
+        type: 'VISUAL FLIGHT MANEUVERS',
+        status: 'Available',
+        image: 'https://images.unsplash.com/photo-1468183654773-77e2f0bb6bf9?auto=format&fit=crop&q=80&w=1200',
+        specs: ['APPROACH', 'FLARE', 'ROLLOUT'],
+        difficulty: 'Basic',
+        objective: 'Visual approach and landing scenarios for various weather conditions and airport environments.',
+        subModules: landingModules
+    }
 ];
 
 const ModuleCard: React.FC<{ 
@@ -174,8 +234,9 @@ const ModuleCard: React.FC<{
             <div className="flex gap-3 flex-wrap">
                 {module.specs.map((spec, i) => (
                     <div key={i} className="flex items-center gap-2 text-[9px] text-white font-black uppercase tracking-widest bg-zinc-900/80 backdrop-blur-md px-3 py-1.5 rounded-md border border-white/5 group-hover:border-g1000-cyan/30 transition-colors">
-                        {spec.includes('VOR') ? <Radio className="w-3 h-3 text-g1000-cyan" /> : 
-                         spec.includes('TRACKING') || spec.includes('TO') ? <Target className="w-3 h-3 text-g1000-cyan" /> : 
+                        {spec.includes('VOR') || spec.includes('HSI') ? <Radio className="w-3 h-3 text-g1000-cyan" /> : 
+                         spec.includes('TRACKING') || spec.includes('APPROACH') ? <Target className="w-3 h-3 text-g1000-cyan" /> : 
+                         spec.includes('WIND') || spec.includes('GUSTS') ? <Wind className="w-3 h-3 text-g1000-cyan" /> :
                          <Navigation2 className="w-3 h-3 text-g1000-cyan" />}
                         {spec}
                     </div>
@@ -189,22 +250,26 @@ const ModuleCard: React.FC<{
 );
 
 const SimulatorRoom: React.FC = () => {
-  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [missionId, setMissionId] = useState<string | null>(null);
   const [isConfigOpen, setIsConfigOpen] = useState(false);
   const [selectedSimConfig, setSelectedSimConfig] = useState<'VOR' | 'HSI' | null>(null);
   const [isSimRunning, setIsSimRunning] = useState(false);
+  
+  // Navigation Stack for drilling down modules
+  const [moduleStack, setModuleStack] = useState<TrainingModule[]>([]);
 
-  const activeSim = trainingScenarios.find(s => s.id === selectedId);
+  // The active module is the last one in the stack. If stack is empty, we are at root.
+  const activeModule = moduleStack.length > 0 ? moduleStack[moduleStack.length - 1] : null;
 
-  const sortedTrainingScenarios = useMemo(() => {
-    return [...trainingScenarios].sort((a, b) => difficultyRank[a.difficulty] - difficultyRank[b.difficulty]);
-  }, []);
-
-  const sortedSubModules = useMemo(() => {
-    if (!activeSim?.subModules) return [];
-    return [...activeSim.subModules].sort((a, b) => difficultyRank[a.difficulty] - difficultyRank[b.difficulty]);
-  }, [activeSim]);
+  const currentList = useMemo(() => {
+    if (!activeModule) return rootModules;
+    if (activeModule.subModules) {
+        // Sort submodules by difficulty if needed, or keep order
+        // Let's sort them to be consistent with previous logic
+        return [...activeModule.subModules].sort((a, b) => difficultyRank[a.difficulty] - difficultyRank[b.difficulty]);
+    }
+    return [];
+  }, [activeModule]);
 
   const handleLaunchSim = (config: 'VOR' | 'HSI') => {
     playSound('click');
@@ -213,13 +278,47 @@ const SimulatorRoom: React.FC = () => {
     setIsSimRunning(true);
   };
 
+  const handleCardClick = (module: TrainingModule) => {
+      // If module has submodules, drill down
+      if (module.subModules && module.subModules.length > 0) {
+          setModuleStack([...moduleStack, module]);
+      } else {
+          // If leaf node, check if it's a launchable scenario
+          // Currently only foundation modules are fully hooked up to VORSimulator logic
+          if (['f-vor', 'f-homing', 'f-inbound', 'l-crosswind', 'f-outbound'].includes(module.id)) {
+              setMissionId(module.id);
+              // For landing simulator, we skip the config modal and default to HSI-style display logic inside the component
+              if (module.id === 'l-crosswind') {
+                  setSelectedSimConfig('HSI'); 
+                  setIsSimRunning(true);
+              } else {
+                  setIsConfigOpen(true);
+              }
+          } else {
+              console.log("Placeholder launch for:", module.id);
+              // For now, these just log, or could show a 'coming soon' toast
+          }
+      }
+  };
+
+  const handleBack = () => {
+      playSound('click');
+      if (moduleStack.length > 0) {
+          setModuleStack(moduleStack.slice(0, -1));
+      }
+  };
+
   if (isSimRunning && selectedSimConfig) {
     return <VORSimulator type={selectedSimConfig} missionId={missionId} onExit={() => setIsSimRunning(false)} />;
   }
 
-  if (selectedId && activeSim) {
-    return (
-      <div className="h-full w-full bg-[#050505] text-white font-mono flex flex-col animate-fade-in relative overflow-hidden">
+  // Determine if we are in a "Detail" view (activeModule is set) or "Root" view
+  // The UI is shared, but the header changes
+  const isRoot = !activeModule;
+
+  return (
+    <div className="h-full w-full bg-[#050505] text-white font-mono flex flex-col animate-fade-in relative overflow-hidden">
+        
         {/* Config Modal Overlay */}
         {isConfigOpen && (
           <div className="absolute inset-0 z-[100] flex items-center justify-center animate-fade-in">
@@ -273,95 +372,76 @@ const SimulatorRoom: React.FC = () => {
           </div>
         )}
 
-        <div className="absolute top-0 right-0 w-96 h-96 bg-g1000-cyan/5 blur-[120px] rounded-full pointer-events-none"></div>
-        <div className="h-24 shrink-0 border-b border-white/10 flex items-center justify-between px-10 bg-black/60 backdrop-blur-md sticky top-0 z-50">
-          <button onClick={() => { playSound('click'); setSelectedId(null); }} className="flex items-center gap-3 text-zinc-400 hover:text-white transition-all group px-4 py-2 rounded-lg hover:bg-white/5">
-            <ChevronLeft className="w-6 h-6 group-hover:-translate-x-1 transition-transform" />
-            <span className="text-xs font-black tracking-widest uppercase">Return to Syllabus</span>
-          </button>
-          <div className="text-right">
-            <h2 className="text-g1000-cyan font-black text-2xl tracking-widest uppercase">{activeSim.name}</h2>
-            <div className="flex items-center justify-end gap-3 mt-1">
-                <span className="text-[10px] text-zinc-500 font-bold tracking-[0.3em] uppercase">{activeSim.type}</span>
-                <div className="w-1.5 h-1.5 rounded-full bg-g1000-cyan shadow-[0_0_8px_cyan]"></div>
+      {/* BACKGROUND DECORATION */}
+      <div className="absolute top-0 right-0 w-96 h-96 bg-g1000-cyan/5 blur-[120px] rounded-full pointer-events-none"></div>
+
+      {/* HEADER */}
+      {isRoot ? (
+          <div className="relative h-28 shrink-0 flex items-end px-10 pb-6 bg-gradient-to-b from-zinc-800/10 to-black border-b border-white/10 z-10 backdrop-blur-sm">
+            <div className="flex justify-between items-end w-full">
+                <div>
+                    <div className="flex items-center gap-4 mb-2">
+                       <BarChart className="w-6 h-6 text-g1000-cyan" />
+                       <span className="text-g1000-cyan font-black text-3xl tracking-[0.15em] uppercase drop-shadow-[0_0_15px_rgba(0,255,255,0.4)]">Training Syllabus</span>
+                    </div>
+                    <p className="text-[10px] text-zinc-500 font-bold tracking-[0.4em] uppercase">Structured Navigation Progress • v2.0</p>
+                </div>
             </div>
           </div>
-        </div>
+      ) : (
+          <div className="h-24 shrink-0 border-b border-white/10 flex items-center justify-between px-10 bg-black/60 backdrop-blur-md sticky top-0 z-50">
+            <button onClick={handleBack} className="flex items-center gap-3 text-zinc-400 hover:text-white transition-all group px-4 py-2 rounded-lg hover:bg-white/5">
+              <ChevronLeft className="w-6 h-6 group-hover:-translate-x-1 transition-transform" />
+              <span className="text-xs font-black tracking-widest uppercase">Back to Menu</span>
+            </button>
+            <div className="text-right">
+              <h2 className="text-g1000-cyan font-black text-2xl tracking-widest uppercase">{activeModule.name}</h2>
+              <div className="flex items-center justify-end gap-3 mt-1">
+                  <span className="text-[10px] text-zinc-500 font-bold tracking-[0.3em] uppercase">{activeModule.type}</span>
+                  <div className="w-1.5 h-1.5 rounded-full bg-g1000-cyan shadow-[0_0_8px_cyan]"></div>
+              </div>
+            </div>
+          </div>
+      )}
 
-        <div className="flex-1 overflow-y-auto p-10 custom-scrollbar">
-          {activeSim.subModules ? (
-            <div className="max-w-5xl mx-auto">
-              <div className="mb-12 flex flex-col md:flex-row items-center gap-8 p-10 bg-zinc-900/20 border border-white/5 rounded-3xl backdrop-blur-sm relative overflow-hidden">
+      {/* Render List of Modules */}
+      <div className="flex-1 overflow-y-auto p-10 custom-scrollbar">
+        <div className="max-w-5xl mx-auto">
+          {/* If we are deep in a module, show a summary banner */}
+          {!isRoot && (
+              <div className="mb-12 flex flex-col md:flex-row items-center gap-8 p-10 bg-zinc-900/20 border border-white/5 rounded-3xl backdrop-blur-sm relative overflow-hidden animate-fade-in">
                  <div className="absolute top-0 left-0 w-1 h-full bg-g1000-amber"></div>
                  <div className="p-5 bg-zinc-950 rounded-2xl text-g1000-amber border border-white/10 shadow-2xl">
                     <Award className="w-10 h-10" />
                  </div>
                  <div className="flex-1">
-                    <h4 className="text-lg font-black tracking-widest uppercase text-white mb-2">Detailed Curriculum Modules</h4>
-                    <p className="text-zinc-400 text-sm leading-relaxed max-w-2xl italic">Each module represents a specific navigation capability. Select VOR Fundamentals or Station Homing to launch the 2D Simulator.</p>
+                    <h4 className="text-lg font-black tracking-widest uppercase text-white mb-2">Category Overview</h4>
+                    <p className="text-zinc-400 text-sm leading-relaxed max-w-2xl italic">{activeModule.objective}</p>
                  </div>
               </div>
+          )}
+
+          {/* Render List of Modules */}
+          {currentList.length > 0 ? (
               <div className="flex flex-col space-y-2">
-                {sortedSubModules.map((sub, i) => (
-                  <ModuleCard key={sub.id} module={sub} index={i} onClick={() => {
-                      if (sub.id === 'f-vor' || sub.id === 'f-homing') {
-                        setMissionId(sub.id);
-                        setIsConfigOpen(true);
-                      } else {
-                        console.log("Launching simulation:", sub.id);
-                      }
-                      playSound('click');
-                  }} />
+                {currentList.map((mod, idx) => (
+                  <ModuleCard key={mod.id} module={mod} index={idx} onClick={() => handleCardClick(mod)} />
                 ))}
               </div>
-            </div>
           ) : (
-            <div className="h-full flex flex-col items-center justify-center py-20 text-center animate-pulse">
-               <Activity className="w-20 h-20 text-zinc-800 mb-8" />
-               <p className="text-zinc-500 font-black tracking-[0.5em] uppercase text-xl">System Sync in Progress</p>
-            </div>
+             <div className="h-full flex flex-col items-center justify-center py-20 text-center animate-pulse">
+                <Activity className="w-20 h-20 text-zinc-800 mb-8" />
+                <p className="text-zinc-500 font-black tracking-[0.5em] uppercase text-xl">Module Content Syncing...</p>
+             </div>
           )}
         </div>
-        <div className="h-20 shrink-0 bg-black border-t border-white/10 flex items-center justify-between px-10">
-           <div className="flex items-center gap-10">
-              <div className="flex flex-col">
-                 <span className="text-[9px] text-zinc-600 font-black uppercase tracking-widest">Simulation Type</span>
-                 <span className="text-xs font-bold text-zinc-400 uppercase tracking-widest">Ground-Based Radio Navigation</span>
-              </div>
-           </div>
-           <button onClick={() => playSound('click')} className="bg-white/5 hover:bg-g1000-cyan hover:text-black border border-white/10 px-12 py-3 rounded-xl text-xs font-black tracking-[0.2em] uppercase transition-all shadow-[0_0_30px_rgba(0,0,0,0.5)] active:scale-95">
-              Auto-Sequencing Start
-           </button>
-        </div>
       </div>
-    );
-  }
 
-  return (
-    <div className="h-full w-full bg-[#050505] text-white font-mono flex flex-col animate-fade-in relative overflow-hidden">
-      <div className="relative h-28 shrink-0 flex items-end px-10 pb-6 bg-gradient-to-b from-zinc-800/10 to-black border-b border-white/10 z-10 backdrop-blur-sm">
-        <div className="flex justify-between items-end w-full">
-            <div>
-                <div className="flex items-center gap-4 mb-2">
-                   <BarChart className="w-6 h-6 text-g1000-cyan" />
-                   <span className="text-g1000-cyan font-black text-3xl tracking-[0.15em] uppercase drop-shadow-[0_0_15px_rgba(0,255,255,0.4)]">Training Syllabus</span>
-                </div>
-                <p className="text-[10px] text-zinc-500 font-bold tracking-[0.4em] uppercase">Structured IFR Navigation Progress • v2.0</p>
-            </div>
-        </div>
-      </div>
-      <div className="flex-1 overflow-y-auto p-10 custom-scrollbar">
-        <div className="max-w-5xl mx-auto">
-          {sortedTrainingScenarios.map((sim, idx) => (
-            <ModuleCard key={sim.id} module={sim} index={idx} onClick={() => setSelectedId(sim.id)} />
-          ))}
-        </div>
-      </div>
       <div className="h-16 shrink-0 bg-black border-t border-white/5 flex items-center justify-between px-10 z-10">
          <div className="flex items-center gap-10">
             <div className="flex items-center gap-3 text-zinc-500 hover:text-zinc-300 transition-colors cursor-help group">
                 <Navigation2 className="w-5 h-5 group-hover:text-g1000-cyan transition-colors" />
-                <span className="text-[10px] font-black uppercase tracking-[0.2em]">Nav-Engine: Passive</span>
+                <span className="text-[10px] font-black uppercase tracking-[0.2em]">Nav-Engine: {isRoot ? 'Standby' : 'Active'}</span>
             </div>
          </div>
       </div>
